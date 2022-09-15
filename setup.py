@@ -32,7 +32,6 @@ setup(
                 "Programming Language :: Python :: 3",
                 "Programming Language :: Python :: 3.9",
                 ],
-    # packages=find_packages(where='src'),
     packages=find_packages('src'),
     package_dir={'': 'src'},
     package_data={'':  ['resources/*']},
