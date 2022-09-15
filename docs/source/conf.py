@@ -5,7 +5,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 
-autodoc_mock_imports = ['_numpy']
+autodoc_mock_imports = ['numpy']
 
 # -- Path setup --------------------------------------------------------------
 
