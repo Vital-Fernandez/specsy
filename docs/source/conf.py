@@ -49,8 +49,8 @@ extensions = [
     'sphinx.ext.imgmath',
     'matplotlib.sphinxext.plot_directive',
     'sphinx.ext.imgmath',
-    'nbsphinx'
-]
+    'nbsphinx',
+    'rst2pdf.pdfbuilder']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_build']
