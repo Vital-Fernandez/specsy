@@ -5,7 +5,6 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 
-autodoc_mock_imports = ['numpy']
 
 # -- Path setup --------------------------------------------------------------
 
@@ -24,6 +23,7 @@ from pathlib import Path
 
 _lib_path = Path(__file__).parents[2]/'src'
 sys.path.append(str(_lib_path))
+autodoc_mock_imports = ['numpy']
 
 # -- Project information -----------------------------------------------------
 
