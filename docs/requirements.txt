@@ -2,4 +2,3 @@ ipykernel
 nbsphinx
 numpy
 lime
-pyneb

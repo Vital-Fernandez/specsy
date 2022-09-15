@@ -5,5 +5,4 @@ astropy~=4.1
 scipy~=1.7.3
 nbsphinx
 lime~=0.9.0
-pyneb~=1.1.15
 setuptools~=58.0.4

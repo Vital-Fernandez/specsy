@@ -36,5 +36,5 @@ setup(
     package_dir={'': 'src'},
     package_data={'':  ['resources/*']},
     include_package_data=True,
-    install_requires=['numpy', 'matplotlib', 'pandas', 'astropy', 'lime', 'pyneb'],
+    install_requires=['numpy', 'matplotlib', 'pandas', 'astropy', 'lime'],
     )
