@@ -1,8 +1,13 @@
 import logging
 import numpy as np
-import pyneb as pn
 from ..tools import truncated_gaussian, flux_distribution
 from lime import label_decomposition
+
+try:
+    import pyneb as pn
+    pyneb_check = True
+except ImportError:
+    pyneb_check = False
 
 _logger = logging.getLogger('SpecSy')
 

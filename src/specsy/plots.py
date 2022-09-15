@@ -1,5 +1,5 @@
 import numpy as np
-
+import astropy
 from lime.plots import save_close_fig_swicth, STANDARD_PLOT
 
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
