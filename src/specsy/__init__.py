@@ -18,5 +18,6 @@ _logger.addHandler(consoleHandle)
 from .tools import flux_distribution
 from .models.extinction import cHbeta_from_log
 from .models.chemistry import truncated_SII_density_dist, ratio_S23, sulfur_diaz_2020
-
-
+from .models.nebular_continuum import NebularContinua
+from lime import load_cfg, load_cfg, label_decomposition
+from lime.transitions import label_components, latex_from_label

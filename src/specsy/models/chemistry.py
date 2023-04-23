@@ -12,6 +12,11 @@ except ImportError:
 _logger = logging.getLogger('SpecSy')
 
 
+def TOIII_from_TSIII_relation(T_low):
+    # From Hagele et al 2006
+    return (0.8403 * T_low / 10000.0 + 0.2689) * 10000.0
+
+
 def truncated_SII_density_dist(log=None, SII_lines=('S2_6716A', 'S2_6731A'), temp=10000, S2_pyneb=None, flux_dict=None,
                                n_steps=1000):
 
@@ -53,7 +58,7 @@ def truncated_SII_density_dist(log=None, SII_lines=('S2_6716A', 'S2_6731A'), tem
     '''
 
     if flux_dict is None:
-        flux_dict = flux_distribution(log, 'gauss')
+        flux_dict = flux_distribution(log, 'auto')
 
     # Compute the densities
     if (SII_lines[0] in flux_dict) and (SII_lines[1] in flux_dict):

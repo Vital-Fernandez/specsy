@@ -13,7 +13,7 @@ def extinction_gradient(cHbeta_array, n_array, x, y_array, idcs_valid=None, line
 
     # Adjust the axis labels to include the reference line
     x_label = r'$f_{\lambda} - $' + f'$f_{{{ref_label.replace("$","")}}}$'
-    y_label = r'$\left(\frac{I_{\lambda}}{I_{ref}}\right)_{Theo}-\left(\frac{F_{\lambda}}{I_{ref}}\right)_{Obs}$'
+    y_label = r'$log(\left(\frac{I_{\lambda}}{I_{ref}}\right)_{Theo})-log(\left(\frac{F_{\lambda}}{I_{ref}}\right)_{Obs})$'
     y_label = y_label.replace('ref', ref_label.replace("$", ""))
     AXES_CONF = {'xlabel': x_label, 'ylabel': y_label, 'title': title}
 

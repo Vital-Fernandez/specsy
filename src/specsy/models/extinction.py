@@ -3,9 +3,9 @@ import numpy as np
 import pyneb as pn
 
 from pandas import DataFrame
-from lime import label_decomposition, load_lines_log
+from lime import label_decomposition
 from pathlib import Path
-
+from lime.io import load_log
 from uncertainties import unumpy, ufloat
 from lmfit.models import LinearModel
 
@@ -97,22 +97,24 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
     if not isinstance(log, DataFrame):
         log_path = Path(log)
         if log_path.is_file():
-            log = load_lines_log(log_path)
+            log = load_log(log_path)
         else:
             _logger.warning(f'- The file {log} could not be found')
             raise TypeError()
 
     # Use all hydrogen lines if a list is not specified
-    if line_list == 'all':
+    if isinstance(line_list, str):
+        if line_list == 'all':
 
-        # Check for the ion column:
-        if 'ion' in log.columns:
-            idcs_lines = log.ion == 'H1'
-        else:
-            ion_array, wave_array, latex_array = label_decomposition(log.index.values)
-            idcs_lines = ion_array == 'H1'
+            # Check for the ion column:
+            if 'ion' in log.columns:
+                idcs_lines = log.ion == 'H1'
+            else:
+                ion_array, wave_array, latex_array = label_decomposition(log.index.values)
+                idcs_lines = ion_array == 'H1'
 
-        line_list = log.loc[idcs_lines].index.values
+            line_list = log.loc[idcs_lines].index.values
+
 
     # Proceed if there are enough lines to compute the extinction
     if line_list.size > 1:
@@ -128,137 +130,163 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
                 ref_excluded = lines_ignore if lines_ignore is not None else []
                 idcs_candidates = log.index.isin(line_list) & ~log.index.isin(ref_excluded)
 
-                He_cand, fluxes_cand = log.loc[idcs_candidates].index.values, log.loc[idcs_candidates].gauss_flux.values
-                ref_line = He_cand[np.argsort(fluxes_cand)[-2]]
-
-        # Check the reference line is there
-        if ref_line in log.index:
-
-            # Label the lines which are found in the lines log
-            ion_ref, waves_ref, latexLabels_ref = label_decomposition(ref_line, scalar_output=True)
-            ion_array, waves_array, latex_array = label_decomposition(line_list)
-
-            # Get the latex labels from the dataframe
-            latexLabels_ref = log.loc[ref_line].latex_label
-            latex_array = log.loc[idcs_lines].latex_label.values
-
-            # Mixed fluxes ratios
-            if flux_entry == 'auto':
-
-                # Integrated fluxes for single lines and gaussian for blended
-                obsFlux, obsErr = get_mixed_fluxes(log)
-                obsFlux, obsErr = obsFlux[idcs_lines], obsErr[idcs_lines]
-
-                # Check if reference line is blended
-                if (log.loc[ref_line, 'profile_label'] == 'no') | (ref_line.endswith('_m')):
-                    ref_flux_type = 'intg'
+                enougth_lines = True
+                if np.sum(idcs_candidates) > 1:
+                    He_cand, fluxes_cand = log.loc[idcs_candidates].index.values, log.loc[idcs_candidates].gauss_flux.values
+                    ref_line = He_cand[np.argsort(fluxes_cand)[-2]]
+                    idcs_lines = idcs_candidates
                 else:
-                    ref_flux_type = 'gauss'
-
-                # Same for the reference line
-                Href_flux = log.loc[ref_line, f'{ref_flux_type}_flux']
-                Href_err = log.loc[ref_line, f'{ref_flux_type}_err']
-
-            # Use the user param
-            else:
-                obsFlux = log.loc[idcs_lines, f'{flux_entry}_flux'].values
-                obsErr = log.loc[idcs_lines, f'{flux_entry}_flux'].values
-
-                Href_flux = log.loc[ref_line, f'{flux_entry}_flux']
-                Href_err = log.loc[ref_line, f'{flux_entry}_flux']
-
-            # Check for negative or nan entries in Href
-            if not np.isnan(Href_flux) and not (Href_flux < 0):
-
-                idcs_flux_invalid = np.isnan(obsFlux) | (obsFlux < 0)
-                idcs_err_invalid = np.isnan(obsErr) | (obsErr < 0)
-
-                # Check for negative or nan entries in Href to remove them
-                if np.any(idcs_flux_invalid):
-                    _logger.warning(f'Lines with bad flux entries: {line_list[idcs_flux_invalid]} ='
-                                    f' {obsFlux[idcs_flux_invalid]}')
-
-                if np.any(idcs_err_invalid):
-                    _logger.warning(f'Lines with bad error entries: {line_list[idcs_err_invalid]} ='
-                                    f' {obsErr[idcs_err_invalid]}')
-
-                idcs_valid = ~idcs_flux_invalid & ~idcs_err_invalid
-                line_list = line_list[idcs_valid]
-                obsFlux = obsFlux[idcs_valid]
-                obsErr = obsErr[idcs_valid]
-                waves_array = waves_array[idcs_valid]
-                latex_array = latex_array[idcs_valid]
-
-                if line_list.size > 1:
-
-                    # Check if there are repeated entries
-                    unique_array, counts = np.unique(waves_array, return_counts=True)
-                    if np.any(counts > 1):
-                        _logger.warning(f'These lines wavelengths are repeated: {unique_array[counts > 1]}\n'
-                                        f'Check for repeated transitions or multiple kinematic components.\n')
-
-                    # Array to compute the uncertainty # TODO need own method to propagate the uncertainty
-                    obsRatio_uarray = unumpy.uarray(obsFlux, obsErr) / ufloat(Href_flux, Href_err)
-
-                    # Theoretical ratios
-                    H1 = pn.RecAtom('H', 1)
-                    refEmis = H1.getEmissivity(tem=temp, den=den, wave=waves_ref)
-                    emisIterable = (H1.getEmissivity(tem=temp, den=den, wave=wave) for wave in waves_array)
-                    linesEmis = np.fromiter(emisIterable, float)
-                    theoRatios = linesEmis / refEmis
-
-                    # Reddening law
-                    rc = pn.RedCorr(R_V=R_V, law=law)
-                    Xx_ref, Xx = rc.X(waves_ref), rc.X(waves_array)
-                    f_lines = Xx/Xx_ref - 1
-                    f_ref = Xx_ref/Xx_ref - 1
-
-                    # cHbeta linear fit values
-                    x_values = f_lines - f_ref
-                    y_values = np.log10(theoRatios) - unumpy.log10(obsRatio_uarray)
-
-                    # Exclude from the linear fitting the lines requested by the user
-                    if lines_ignore is not None:
-                        idcs_valid = ~np.in1d(line_list, lines_ignore)
-                    else:
-                        idcs_valid = np.ones(line_list.size).astype(bool)
-
-                    # Perform fit
-                    lineModel = LinearModel()
-                    y_nom, y_std = unumpy.nominal_values(y_values), unumpy.std_devs(y_values)
-
-                    pars = lineModel.make_params(intercept=y_nom[idcs_valid].min(), slope=0)
-                    output = lineModel.fit(y_nom[idcs_valid], pars, x=x_values[idcs_valid], weights=1/y_std[idcs_valid])
-
-                    cHbeta, cHbeta_err = output.params['slope'].value, output.params['slope'].stderr
-                    intercept, intercept_err = output.params['intercept'].value, output.params['intercept'].stderr
-
-                    if x_values[idcs_valid].size == 2:
-                        cHbeta_err, intercept_err = 0.0, 0.0
-
-                    # Case lmfit cannot fit the error bars, switch none by nan
-                    if not output.errorbars:
-                        cHbeta_err, intercept_err = np.nan, np.nan
-
-                    if show_plot:
-                        extinction_gradient((cHbeta, cHbeta_err), (intercept, intercept_err),
-                                            x_values, (y_nom, y_std),
-                                            line_labels=latex_array, ref_label=latexLabels_ref,
-                                            idcs_valid=idcs_valid,
-                                            save_address=plot_address, title=plot_title,
-                                            fig_cfg=fig_cfg, ax_cfg=ax_cfg)
-
-                else:
-                    _logger.info(f'{"Zero H1 lines" if line_list.size == 0 else "Just one H1 line"} in the input log, '
-                                 f' extinction coefficient could not be calculated')
-
-            else:
-                _logger.warning(f'Reference line {ref_line} had an invalid flux value of {Href_flux}')
-                cHbeta, cHbeta_err = None, None
+                    enougth_lines = False
 
         else:
-            _logger.info(f'The normalization line {ref_line} could not be found in input log')
-            raise IndexError()
+            enougth_lines = True
+
+
+
+        # Check if it is possible
+        if enougth_lines:
+
+            # Check the reference line is there
+            if ref_line in log.index:
+
+                # Label the lines which are found in the lines log
+                ion_ref, waves_ref, latexLabels_ref = label_decomposition(ref_line, scalar_output=True)
+                ion_array, waves_array, latex_array = label_decomposition(line_list)
+
+                # Get the latex labels from the dataframe
+                latexLabels_ref = log.loc[ref_line].latex_label
+                latex_array = log.loc[idcs_lines].latex_label.values
+
+                # Mixed fluxes ratios
+                if flux_entry == 'auto':
+
+                    # Integrated fluxes for single lines and gaussian for blended
+                    obsFlux, obsErr = get_mixed_fluxes(log)
+                    obsFlux, obsErr = obsFlux[idcs_lines], obsErr[idcs_lines]
+
+                    # Check if reference line is blended
+                    if (log.loc[ref_line, 'profile_label'] == 'no') | (ref_line.endswith('_m')):
+                        ref_flux_type = 'intg'
+                    else:
+                        ref_flux_type = 'gauss'
+
+                    # Same for the reference line
+                    Href_flux = log.loc[ref_line, f'{ref_flux_type}_flux']
+                    Href_err = log.loc[ref_line, f'{ref_flux_type}_err']
+
+                # Use the user param
+                else:
+                    obsFlux = log.loc[idcs_lines, f'{flux_entry}_flux'].values
+                    obsErr = log.loc[idcs_lines, f'{flux_entry}_err'].values
+
+                    Href_flux = log.loc[ref_line, f'{flux_entry}_flux']
+                    Href_err = log.loc[ref_line, f'{flux_entry}_err']
+
+                # Check for negative or nan entries in Href
+                if not np.isnan(Href_flux) and not (Href_flux < 0):
+
+                    idcs_flux_invalid = np.isnan(obsFlux) | (obsFlux < 0)
+                    idcs_err_invalid = np.isnan(obsErr) | (obsErr < 0)
+
+                    # Check for negative or nan entries in Href to remove them
+                    if np.any(idcs_flux_invalid):
+                        _logger.warning(f'Lines with bad flux entries: {line_list[idcs_flux_invalid]} ='
+                                        f' {obsFlux[idcs_flux_invalid]}')
+
+                    if np.any(idcs_err_invalid):
+                        _logger.warning(f'Lines with bad error entries: {line_list[idcs_err_invalid]} ='
+                                        f' {obsErr[idcs_err_invalid]}')
+
+                    idcs_valid = ~idcs_flux_invalid & ~idcs_err_invalid
+                    line_list = line_list[idcs_valid]
+                    obsFlux = obsFlux[idcs_valid]
+                    obsErr = obsErr[idcs_valid]
+                    waves_array = waves_array[idcs_valid]
+                    latex_array = latex_array[idcs_valid]
+
+                    if line_list.size > 1:
+
+                        # Check if there are repeated entries
+                        unique_array, counts = np.unique(waves_array, return_counts=True)
+                        if np.any(counts > 1):
+                            _logger.warning(f'These lines wavelengths are repeated: {unique_array[counts > 1]}\n'
+                                            f'Check for repeated transitions or multiple kinematic components.\n')
+
+                        # Array to compute the uncertainty # TODO need own method to propagate the uncertainty
+                        obsRatio_uarray = unumpy.uarray(obsFlux, obsErr) / ufloat(Href_flux, Href_err)
+
+                        # Theoretical ratios
+                        H1 = pn.RecAtom('H', 1)
+                        refEmis = H1.getEmissivity(tem=temp, den=den, wave=waves_ref)
+                        emisIterable = (H1.getEmissivity(tem=temp, den=den, wave=wave) for wave in waves_array)
+                        linesEmis = np.fromiter(emisIterable, float)
+                        theoRatios = linesEmis / refEmis
+
+                        # Reddening law
+                        rc = pn.RedCorr(R_V=R_V, law=law)
+                        Xx_ref, Xx = rc.X(waves_ref), rc.X(waves_array)
+                        f_lines = Xx/Xx_ref - 1
+                        f_ref = Xx_ref/Xx_ref - 1
+
+                        # cHbeta linear fit values
+                        x_values = f_lines - f_ref
+                        y_values = np.log10(theoRatios) - unumpy.log10(obsRatio_uarray)
+
+                        # rc.setCorr(obs_over_theo=5.34/2.86, wave1=6563., wave2=4861.)
+
+                        ratio_dis = np.random.normal(obsRatio_uarray[-1].nominal_value, obsRatio_uarray[-1].std_dev, size=1000)/2.86
+                        rc.setCorr(obs_over_theo=ratio_dis, wave1=6563., wave2=4861.)
+                        cHb, cHb_err = rc.cHbeta.mean(), rc.cHbeta.std() #(0.8395045358309076, 0.15112567990954212)
+                        eBV, eBV_err = rc.EbvFromCHbeta(cHb), rc.EbvFromCHbeta(cHb_err)
+                        print(f'E(B-V) = {eBV:0.2f} +/- {eBV_err:0.2f} || c(Hbeta) = {cHb:0.2f} +/- {cHb_err:0.2f}')
+
+
+                        # Exclude from the linear fitting the lines requested by the user
+                        if lines_ignore is not None:
+                            idcs_valid = ~np.in1d(line_list, lines_ignore)
+                        else:
+                            idcs_valid = np.ones(line_list.size).astype(bool)
+
+                        # Perform fit
+                        lineModel = LinearModel()
+                        y_nom, y_std = unumpy.nominal_values(y_values), unumpy.std_devs(y_values)
+
+                        pars = lineModel.make_params(intercept=y_nom[idcs_valid].min(), slope=0)
+                        output = lineModel.fit(y_nom[idcs_valid], pars, x=x_values[idcs_valid], weights=1/y_std[idcs_valid])
+
+                        cHbeta, cHbeta_err = output.params['slope'].value, output.params['slope'].stderr
+                        intercept, intercept_err = output.params['intercept'].value, output.params['intercept'].stderr
+
+                        if x_values[idcs_valid].size == 2:
+                            cHbeta_err, intercept_err = 0.0, 0.0
+
+                        # Case lmfit cannot fit the error bars, switch none by nan
+                        if not output.errorbars:
+                            cHbeta_err, intercept_err = np.nan, np.nan
+
+                        if show_plot:
+                            extinction_gradient((cHbeta, cHbeta_err), (intercept, intercept_err),
+                                                x_values, (y_nom, y_std),
+                                                line_labels=latex_array, ref_label=latexLabels_ref,
+                                                idcs_valid=idcs_valid,
+                                                save_address=plot_address, title=plot_title,
+                                                fig_cfg=fig_cfg, ax_cfg=ax_cfg)
+
+                    else:
+                        _logger.info(f'{"Zero H1 lines" if line_list.size == 0 else "Just one H1 line"} in the input log, '
+                                     f' extinction coefficient could not be calculated')
+
+                else:
+                    _logger.warning(f'Reference line {ref_line} had an invalid flux value of {Href_flux}')
+                    cHbeta, cHbeta_err = None, None
+
+            else:
+                _logger.info(f'The normalization line {ref_line} could not be found in input log')
+                raise IndexError()
+
+        else:
+            _logger.info(f'Given the excluded lines the extinction coefficient could not be calculated')
+            cHbeta, cHbeta_err = None, None
 
     else:
         _logger.info(f'{"Zero H1 lines" if line_list.size == 0 else "Just one H1 line"} in the input log, extinction coefficient '
