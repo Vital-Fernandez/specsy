@@ -3,8 +3,13 @@ Specsy - A python package for the analysis of astronomical spectra
 """
 
 import logging
-from pathlib import Path
 
+from .io import label_decomposition, load_log, save_log, load_cfg, save_cfg
+from .tools import flux_distribution
+from .astro.extinction import cHbeta_from_log
+from .astro.chemistry import truncated_SII_density_dist, ratio_S23, sulfur_diaz_2020
+from .astro.nebular_continuum import NebularContinua
+from .treatement import SpectraSynthesizer
 
 # Creating the lime logger
 _logger = logging.getLogger("SpecSy")
@@ -15,9 +20,8 @@ consoleHandle = logging.StreamHandler()
 consoleHandle.setFormatter(logging.Formatter('%(name)s %(levelname)s: %(message)s'))
 _logger.addHandler(consoleHandle)
 
-from .tools import flux_distribution
-from .models.extinction import cHbeta_from_log
-from .models.chemistry import truncated_SII_density_dist, ratio_S23, sulfur_diaz_2020
-from .models.nebular_continuum import NebularContinua
-from lime import load_cfg, load_cfg, label_decomposition
-from lime.transitions import label_components, latex_from_label
+
+# Error function SpecSy
+
+
+

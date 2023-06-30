@@ -16,6 +16,9 @@ def TOIII_from_TSIII_relation(T_low):
     # From Hagele et al 2006
     return (0.8403 * T_low / 10000.0 + 0.2689) * 10000.0
 
+def TOII_from_TOIII_relation(T_high, n_e):
+    # From Epm and Cotini 2009
+    return ((1.2 + 0.002*n_e + 4.2/n_e) / (10000.0/T_high + 0.08 + 0.003*n_e + 2.5/n_e)) * 10000.0
 
 def truncated_SII_density_dist(log=None, SII_lines=('S2_6716A', 'S2_6731A'), temp=10000, S2_pyneb=None, flux_dict=None,
                                n_steps=1000):

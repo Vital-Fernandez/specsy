@@ -1,0 +1,61 @@
+[data_location]
+input_data_folder = "inputs"
+output_data_folder = "outputs"
+external_data_folder = "literature_data"
+lines_data_file = "lines_data.xlsx"
+ftau_file = "Benjamin1999_OpticalDepthFunctionCoefficients.txt"
+HI_FB_file = "HI_t3_elec.ascii"
+HeI_FB_file = "HeI_t5_elec.ascii"
+HeII_FB_file = "HeII_t4_elec.ascii"
+
+[simulation_properties]
+atomic_data_list = "s_iii_coll_HRS12.dat"
+temp_grid_array = [9000, 20000, 251]
+den_grid_array = [1, 600, 101]
+high_temp_ions_list = ["He1", "He2", "O3", "Ar4", "Ne3", "Fe3", "Cl4", "C3"]
+Normalized_by_Hbeta_check = true
+lines_minimum_error = 0.02
+
+[extinction]
+R_v = 3.4
+reddenig_curve = "G03 LMC"
+norm_wave = 4862.683
+
+[emission_normalizartion_line]
+norm_line_label = "H1_4861A"
+norm_line_wave = 4862.683
+
+[inference_model_configuration]
+parameter_list = ["n_e", "T_low", "T_high", "cHbeta", "tau", "Ar3", "Ar4", "N2", "O2", "O3",
+                  "S2", "S3", "He1", "He2", "Cl3", "Ne3", "Fe3", "Teff", "logU"]
+
+spectra_components_list = "Emission"
+T_high_check = true
+extinction_check = true
+iteration_steps = 7000
+tuning_steps = 2000
+sampler = "auto"
+input_lines_list = ["Fe3_4658A", "H1_4341A", "H1_6563A", "He2_4686A", "He1_4471A", "He1_5876A", "He1_6678A","O3_4959A",
+                    "O3_5007A","N2_6584A","S2_6716A","S2_6731A","S3_6312A","Ar3_7136A","Ar4_4740A"]
+
+[priors_configuration]
+logParams_list = ["He1", "He2"]
+Teff_prior = ["Uniform",30000.0,90000.0,1.0,0.0]
+logU_prior = ["Uniform",-4.0,-1.5,1.0,0.0]
+T_low_prior = ["Normal",15000.0,5000.0,1.0,0.0]
+T_high_prior = ["Normal",15000.0,5000.0,1.0,0.0]
+n_e_prior = ["HalfCauchy",2.0,0.0,200.0,0.0]
+cHbeta_prior = ["HalfCauchy", 2.0, 0.0, 1.0, 0.0]
+tau_prior = ["Lognormal",0,1.0,1.0,0.0]
+Ar3_prior = ["Normal",5.0,5.0,1.0,0.0]
+Ar4_prior = ["Normal",5.0,5.0,1.0,0.0]
+He1_prior = ["Normal",0.0,3.0,1.0,0.0]
+He2_prior = ["Normal",0.0,3.0,1.0,0.0]
+N2_prior = ["Normal",5.0,5.0,1.0,0.0]
+O2_prior = ["Normal",5.0,5.0,1.0,0.0]
+O3_prior = ["Normal",5.0,5.0,1.0,0.0]
+S2_prior = ["Normal",5.0,5.0,1.0,0.0]
+S3_prior = ["Normal",5.0,5.0,1.0,0.0]
+Cl3_prior = ["Normal",5.0,5.0,1.0,0.0]
+Ne3_prior = ["Normal",5.0,5.0,1.0,0.0]
+Fe3_prior = ["Normal",5.0,5.0,1.0,0.0]

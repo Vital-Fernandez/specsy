@@ -1,48 +1,29 @@
 import pymc as pm
 import arviz as az
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
+from matplotlib import pyplot as plt
 
-# Initialize random number generator
-RANDOM_SEED = 8927
-rng = np.random.default_rng(RANDOM_SEED)
+# Assume 10 trials and 5 successes out of those trials
+# Change these numbers to see how the posterior plot changes
+trials = 10
+successes = 5
 
-# True parameter values
-alpha, sigma = 1, 1
-beta = [1, 2.5]
+print(pm.__version__)
+print(az.__version__)
 
-# Size of dataset
-size = 100
+# Set up model context
+with pm.Model() as coin_flip_model:
+    # Probability p of success we want to estimate
+    # and assign Beta prior
+    p = pm.Beta("p", alpha=1, beta=1)
 
-# Predictor variable
-X1 = np.random.randn(size)
-X2 = np.random.randn(size) * 0.2
+    # Define likelihood
+    obs = pm.Binomial("obs", p=p, n=trials, observed=successes)
 
-# Simulate outcome variable
-Y = alpha + beta[0] * X1 + beta[1] * X2 + rng.normal(size=size) * sigma
-
-print(f"Running on PyMC v{pm.__version__}")
-
-basic_model = pm.Model()
-
-with basic_model:
-
-    # Priors for unknown model parameters
-    alpha = pm.Normal("alpha", mu=0, sigma=10)
-    beta = pm.Normal("beta", mu=0, sigma=10, shape=2)
-    sigma = pm.HalfNormal("sigma", sigma=1)
-
-    # Expected value of outcome
-    mu = alpha + beta[0] * X1 + beta[1] * X2
-
-    # Likelihood (sampling distribution) of observations
-    Y_obs = pm.Normal("Y_obs", mu=mu, sigma=sigma, observed=Y)
-
+    # Hit Inference Button
     idata = pm.sample(cores=1, chains=4)
 
+az.plot_posterior(idata, show=True)
 
-print(idata.posterior["alpha"].sel(draw=slice(0, 4)))
-
-az.plot_trace(idata, combined=True, )
 plt.show()
+
+
