@@ -1,4 +1,4 @@
-            wavelength  intg_flux  intg_err  ion      blended_label
+            wavelength  intg_flux  intg_flux_err  ion      blended_label
 O2_3726A_m      3726.0   5.481299  0.109626   O2  O2_3726A+O2_3729A
 Ne3_3968A       3968.0   0.118894  0.002378  Ne3               None
 He1_4026A       4026.0   0.016606  0.000332  He1               None

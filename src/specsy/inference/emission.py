@@ -4,6 +4,7 @@ import pytensor
 from pytensor import tensor as tt, function
 from ..astro.fluxes_line import EmissionTensors
 from ..astro.chemistry import TOIII_from_TSIII_relation, TOII_from_TOIII_relation
+from pymc.sampling.jax import sample_blackjax_nuts
 
 log10_factor = 1.0 / np.log(10)
 
@@ -263,13 +264,17 @@ class PhotoIonizationModels(EmissionTensors):
             # Likelihood gas components
             Y_emision = pymc.Normal('Y_emision', mu=fluxTensor, sigma=inputFluxErr, observed=inputFlux)
 
+            # trace = pymc.sample(2000, tune=2000, chains=4, cores=4, init='auto', progressbar=True)
+            trace = sample_blackjax_nuts(2000, tune=2000, chains=4, cores=4, progress_bar=True)
+            # pymc.sampling_jax
+            # pymc.sampling.jax.sample_numpyro_nuts(
             # Display simulation data
             # displaySimulationData(self.inferenModel, self.priorDict)
 
         # self.inferenModel.profile(self.inferenModel.logpt).summary()
         # self.inferenModel.profile(pymc3.gradient(self.inferenModel.logpt, self.inferenModel.vars)).summary()
 
-        return
+        return trace
 
     def temperature_selection(self, fit_T_low=True, fit_T_high=True):
 

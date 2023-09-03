@@ -1,10 +1,85 @@
+import logging
+import pprint
+
 import numpy as np
 import pickle
 from pathlib import Path
-from .io import label_decomposition, parseConfDict, fits_db
+from pandas import DataFrame
+import pyneb as pn
+
+from .io import label_decomposition, parseConfDict, fits_db, check_file_dataframe, check_file_configuration, SpecSy_error
 from .operations.interpolation import GridWrapper, emissivity_grid_calc
 from .inference.emission import PhotoIonizationModels
 from .astro.fluxes_line import EmissionFluxModel
+from .astro.extinction import flambda_calc
+from .astro.emissivity import emissivity_grid_calculation
+from .tools import extract_fluxes, normalize_fluxes
+
+_logger = logging.getLogger('SpecSy')
+
+
+class ChemicalModel:
+
+    #Container to store the emissivity interpolators
+    emis_interp = None
+
+    def __init__(self, obs_cfg=None, object_id=None, default_cfg_prefix="default", log=None, reset_interp=False):
+
+        self.id = None
+        self.log = None
+        self.cfg = None
+        self.line_list = None
+        self.norm_list = None
+        self.reset_interp = reset_interp
+
+        # Input model configuration
+        if obs_cfg is not None:
+            self.cfg = check_file_configuration(obs_cfg, default_cfg_prefix, object_id)
+
+        # Input lines log
+        if log is not None:
+            self.log = log.copy()
+
+        return
+
+    def gas_extinction(self, red_curve=None, R_v=None, normalization_line_column='norm_line'):
+
+        if self.log is not None:
+
+            if normalization_line_column in self.log.columns:
+
+                # Check for parameter values in object configuration if not provided
+                if (red_curve is None) and (self.cfg is not None):
+                    red_curve = self.cfg.get('red_curve')
+
+                if (R_v is None) and (self.cfg is not None):
+                    R_v = self.cfg.get('R_v')
+
+                # Proceed to the calculation
+                if (red_curve is not None) and (R_v is not None):
+
+                    # Prepare calculation parameters
+                    wave_array = self.log.wavelength.to_numpy()
+                    norm_lines = self.log[normalization_line_column].to_numpy()
+                    _particle_array, norm_waves, _latex_array = label_decomposition(norm_lines)
+
+                    # Compute reddening curve and store to log
+                    flambda_array = flambda_calc(wave_array, R_v, red_curve, norm_waves)
+                    self.log['flambda'] = flambda_array
+
+                else:
+                    raise SpecSy_error(f'For the extinction calculation you need to introduce a red_curve_name and a R_v.'
+                                       f"These parameters weren't be found on the input configuration:"
+                                       f"\n{pprint.pprint(self.cfg)}")
+
+            else:
+                _logger.warning(f'The observation lines log does not have a {normalization_line_column} column. '
+                                f'The extinction curve cannot be calculated')
+
+        else:
+            _logger.warning(f'The observation does not have a lines log. The extinction curve cannot be calculated')
+
+        return
 
 
 class SpectraSynthesizer(GridWrapper, PhotoIonizationModels):

@@ -296,29 +296,13 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
     return cHbeta, cHbeta_err
 
 
-def flambda_calc(wavelength_array, model_conf, extinction_section="extinction", R_v_key="R_v", curve_key="reddenig_curve",
-                 norm_wave_key='norm_wave'):
-
-    # Get the parameters from the input configuration
-    if extinction_section in model_conf:
-        R_v = model_conf[extinction_section].get(R_v_key)
-        red_curve = model_conf[extinction_section].get(curve_key)
-        normWave = model_conf[extinction_section].get(norm_wave_key)
-
-        if R_v is None:
-            raise SpecSy_error(f'Input configuration  "[extinction]" section does not have a "{R_v_key}" entry')
-        if red_curve is None:
-            raise SpecSy_error(f'Input configuration  "[extinction]" section does not have a "{curve_key}" entry')
-        if normWave is None:
-            raise SpecSy_error(f'Input configuration  "[extinction]" section does not have a "{norm_wave_key}" entry')
-    else:
-        raise SpecSy_error(f'Input configuration does not include an "[extinction]" section')
+def flambda_calc(wavelength_array, R_v, red_curve, norm_wavelength):
 
     # Call pyneb
     rcGas = pn.RedCorr(R_V=R_v, law=red_curve)
 
     # Compute Xx parametrisation
-    HbetaXx = rcGas.X(normWave)
+    HbetaXx = rcGas.X(norm_wavelength)
     lineXx = rcGas.X(wavelength_array)
 
     # Flambda array

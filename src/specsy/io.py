@@ -3,7 +3,8 @@ import numpy as np
 import configparser
 from pathlib import Path
 from lime.transitions import label_decomposition
-from lime.io import load_cfg, save_cfg, load_log, save_log
+import lime
+from lime.io import load_cfg, save_cfg, save_log, check_file_dataframe, check_file_configuration
 from collections.abc import Sequence
 from astropy.io import fits
 
@@ -22,6 +23,23 @@ FITS_OUTPUTS_EXTENSION = {'parameter_list': '20A',
 class SpecSy_error(Exception):
     """SpecSy exception function"""
 
+
+# Load log
+def load_log(file_address, page: str ='LINELOG', sample_levels: list =['id', 'line'], flux_type=None, lines_list=None,
+             norm_line=None):
+
+    # Return
+    log = lime.load_log(file_address, page, sample_levels)
+
+    # Create new column for the lines flux with the requested type (None for user to introduce "line_flux")
+    if flux_type is not None:
+        lime.tools.extract_fluxes(log, flux_type=flux_type, column_name='line_flux')
+
+    # Check for requested lines and their normalization
+    if norm_line is not None:
+        lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column='line_flux', column_name='line_flux')
+
+    return log
 
 def load_HII_CHI_MISTRY_grid(log_scale=False, log_zero_value = -1000):
 

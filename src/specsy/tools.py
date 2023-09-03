@@ -1,6 +1,8 @@
 import logging
 import numpy as np
 from scipy.stats import truncnorm, norm
+from lime.tools import extract_fluxes, normalize_fluxes
+
 # TODO some of these could go to lime
 
 _logger = logging.getLogger('SpecSy')
