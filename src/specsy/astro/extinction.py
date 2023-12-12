@@ -11,7 +11,7 @@ from lmfit.models import LinearModel
 
 from ..tools import get_mixed_fluxes
 from ..plots import extinction_gradient
-from ..io import SpecSy_error
+from ..io import SpecSy_error, check_file_dataframe
 
 _logger = logging.getLogger('SpecSy')
 
@@ -172,15 +172,15 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
 
                     # Same for the reference line
                     Href_flux = log.loc[ref_line, f'{ref_flux_type}_flux']
-                    Href_err = log.loc[ref_line, f'{ref_flux_type}_err']
+                    Href_err = log.loc[ref_line, f'{ref_flux_type}_flux_err']
 
                 # Use the user param
                 else:
                     obsFlux = log.loc[idcs_lines, f'{flux_entry}_flux'].values
-                    obsErr = log.loc[idcs_lines, f'{flux_entry}_err'].values
+                    obsErr = log.loc[idcs_lines, f'{flux_entry}_flux_err'].values
 
                     Href_flux = log.loc[ref_line, f'{flux_entry}_flux']
-                    Href_err = log.loc[ref_line, f'{flux_entry}_err']
+                    Href_err = log.loc[ref_line, f'{flux_entry}_flux_err']
 
                 # Check for negative or nan entries in Href
                 if not np.isnan(Href_flux) and not (Href_flux < 0):
@@ -233,12 +233,11 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
                         y_values = np.log10(theoRatios) - unumpy.log10(obsRatio_uarray)
 
                         # rc.setCorr(obs_over_theo=5.34/2.86, wave1=6563., wave2=4861.)
-
-                        ratio_dis = np.random.normal(obsRatio_uarray[-1].nominal_value, obsRatio_uarray[-1].std_dev, size=1000)/2.86
-                        rc.setCorr(obs_over_theo=ratio_dis, wave1=6563., wave2=4861.)
-                        cHb, cHb_err = rc.cHbeta.mean(), rc.cHbeta.std() #(0.8395045358309076, 0.15112567990954212)
-                        eBV, eBV_err = rc.EbvFromCHbeta(cHb), rc.EbvFromCHbeta(cHb_err)
-                        print(f'E(B-V) = {eBV:0.2f} +/- {eBV_err:0.2f} || c(Hbeta) = {cHb:0.2f} +/- {cHb_err:0.2f}')
+                        # ratio_dis = np.random.normal(obsRatio_uarray[-1].nominal_value, obsRatio_uarray[-1].std_dev, size=1000)/2.86
+                        # rc.setCorr(obs_over_theo=ratio_dis, wave1=6563., wave2=4861.)
+                        # cHb, cHb_err = rc.cHbeta.mean(), rc.cHbeta.std() #(0.8395045358309076, 0.15112567990954212)
+                        # eBV, eBV_err = rc.EbvFromCHbeta(cHb), rc.EbvFromCHbeta(cHb_err)
+                        # print(f'E(B-V) = {eBV:0.2f} +/- {eBV_err:0.2f} || c(Hbeta) = {cHb:0.2f} +/- {cHb_err:0.2f}')
 
 
                         # Exclude from the linear fitting the lines requested by the user
@@ -293,6 +292,9 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
                      f'could not be calculated')
         cHbeta, cHbeta_err = None, None
 
+    # eBV, eBV_err = rc.EbvFromCHbeta(cHbeta), rc.EbvFromCHbeta(cHbeta_err)
+    # print(f'E(B-V) = {eBV:0.2f} +/- {eBV_err:0.2f} || c(Hbeta) = {cHbeta:0.2f} +/- {cHbeta_err:0.2f}')
+
     return cHbeta, cHbeta_err
 
 
@@ -309,6 +311,41 @@ def flambda_calc(wavelength_array, R_v, red_curve, norm_wavelength):
     f_lambda = lineXx/HbetaXx - 1.0
 
     return f_lambda
+
+
+def reddening_correction(cHbeta, cHbeta_err, log, R_v=3.1, red_curve='G03 LMC', norm_wavelength=None, flux_column='gauss_flux',
+                         n_points=1000, intensity_column='line_int'):
+
+    # TODO log must be df only read from the log, Get normalization from log, add new column at front
+    #
+
+    # log = check_file_dataframe(log, DataFrame)
+
+    line_wavelengths = log.wavelength.to_numpy()
+
+    log['f_lambda'] = flambda_calc(line_wavelengths, R_v, red_curve, norm_wavelength)
+
+    # Recover the parameters
+    flux_array = log[f'{flux_column}'].to_numpy()
+    err_array = log[f'{flux_column}_err'].to_numpy()
+    f_lambda_array = log['f_lambda'].to_numpy()
+
+    # Prepare distributions
+    dist_size = (n_points, len(flux_array))
+    flux_dist = np.random.normal(loc=flux_array, scale=err_array, size=dist_size)
+    cHbeta_dist = np.random.normal(loc=cHbeta, scale=cHbeta_err, size=dist_size)
+
+    # Compute the line intensities
+    int_dist = flux_dist * np.power(10, cHbeta_dist * f_lambda_array)
+
+    log[f'{intensity_column}'] = int_dist.mean(axis=0)
+    log[f'{intensity_column}_err'] = int_dist.std(axis=0)
+
+    # rc = pn.RedCorr(R_V=R_v, law=red_curve, cHbeta=cHbeta)
+    # e_corr = rc.getCorr(log.wavelength.to_numpy(), rel_wave=norm_wavelength)
+    # log['pyneb_int'] = log['line_flux'] * e_corr
+
+    return
 
 
 class ExtinctionModel:

@@ -264,8 +264,8 @@ class PhotoIonizationModels(EmissionTensors):
             # Likelihood gas components
             Y_emision = pymc.Normal('Y_emision', mu=fluxTensor, sigma=inputFluxErr, observed=inputFlux)
 
-            # trace = pymc.sample(2000, tune=2000, chains=4, cores=4, init='auto', progressbar=True)
-            trace = sample_blackjax_nuts(2000, tune=2000, chains=4, cores=4, progress_bar=True)
+            trace = pymc.sample(2000, tune=2000, chains=2, cores=1, init='auto', progressbar=True)
+            # trace = sample_blackjax_nuts(2000, tune=2000, chains=4, cores=4, progress_bar=True)
             # pymc.sampling_jax
             # pymc.sampling.jax.sample_numpyro_nuts(
             # Display simulation data

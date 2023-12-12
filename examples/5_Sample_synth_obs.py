@@ -29,7 +29,7 @@ lineFluxes = log.loc[idcs_lines, 'intg_flux'].values
 lineErr = log.loc[idcs_lines, 'intg_err'].values
 
 # Compute the reddening curve for the input emission lines
-flambda = flambda_calc(lineWaves, model_conf=model_cfg)
+flambda = flambda_calc(lineWaves, red_curve="G03 LMC", R_v=3.4, norm_wavelength=4861)
 
 # Interpolator functions for the emissivity grids
 emis_grid_interp = emissivity_grid_calc(lines_array=lineLabels, comp_dict=merged_lines)

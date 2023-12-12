@@ -1,5 +1,7 @@
 import logging
 import numpy as np
+
+import lime
 from ..tools import truncated_gaussian, flux_distribution
 from lime import label_decomposition
 
@@ -128,3 +130,40 @@ def sulfur_diaz_2020(S_23):
     SH = a_dist + b_dist * np.log10(S_23) + c_dist * np.square(np.log10(S_23))
 
     return SH
+
+def sufur_diaz_2022(lines_log, S2_lines=('S2_6717A', 'S2_6731A'), S3_lines=('S3_9069A', 'S3_9532A'),
+                    S2_norm="H1_6563A", S3_norm="H1_6563A", flux_column=f'line_int', n_steps=5000, temp=10000, den=100):
+
+
+    # Line distribution container
+    dist_dict = {}
+
+    # Check the lines are observed and create Monte-Carlo arrays
+    for line in list(S2_lines) + list(S3_lines) + [S2_norm] + [S3_norm]:
+        int_flux, err_flux = lines_log.loc[line, flux_column], lines_log.loc[line, f'{flux_column}_err']
+        dist_dict[line] = np.random.normal(int_flux, err_flux, size=n_steps)
+
+    # Compute the normalization emissivity
+    H1 = pn.RecAtom('H', 1)
+    line_H_S2 = lime.Line(S2_norm)
+    line_H_S3 = lime.Line(S3_norm)
+
+    # Theoretical emissivity
+    Hbeta_emis = H1.getEmissivity(temp, den, wave=4861)
+    S2_norm_emis = H1.getEmissivity(temp, den, wave=line_H_S2.wavelength[0])
+    S3_norm_emis = H1.getEmissivity(temp, den, wave=line_H_S3.wavelength[0])
+
+    # Calculation S_23
+    S_2 = (dist_dict[S2_lines[0]] + dist_dict[S2_lines[1]]) / dist_dict[S2_norm]
+    S_3 = (dist_dict[S3_lines[0]] + dist_dict[S3_lines[1]]) / dist_dict[S3_norm]
+    S23 = S_2 * (S2_norm_emis/Hbeta_emis) + S_3 * (S3_norm_emis/Hbeta_emis)
+
+    # Calculation abundance coefficients
+    k1 = np.random.normal(6.636, 0.011, n_steps)
+    k2 = np.random.normal(2.202, 0.050, n_steps)
+    k3 = np.random.normal(1.060, 0.098, n_steps)
+
+    # Abundance calculation
+    S_H = k1 + k2 * np.log10(S23) + k3 * np.power(np.log10(S23), 2)
+
+    return np.mean(S_H), np.std(S_H)
