@@ -1,7 +1,7 @@
 numpy~=1.21.2
 matplotlib~=3.3.4
 pandas~=1.2.3
-astropy~=4.1
+astropy~=6.0
 scipy~=1.7.3
 nbsphinx
 lime
