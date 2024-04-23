@@ -105,7 +105,7 @@ line_log['intg_err'] = lineFluxes * model_cfg['simulation_properties']['lines_mi
 
 # # We proceed to safe the synthetic spectrum as if it were a real observation
 log_file_address = './sample_data/synth_linesLog.txt'
-sy.save_log(line_log, log_file_address)
+sy.save_frame(log_file_address, line_log)
 
 # Save the parameters in the natural scale
 model_cfg['true_values'] = param_dict

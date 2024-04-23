@@ -5,13 +5,13 @@ import pyneb as pn
 from pandas import DataFrame
 from lime import label_decomposition
 from pathlib import Path
-from lime.io import load_log
+from lime.io import load_frame
 from uncertainties import unumpy, ufloat
 from lmfit.models import LinearModel
 
 from ..tools import get_mixed_fluxes
 from ..plots import extinction_gradient
-from ..io import SpecSy_error, check_file_dataframe
+from ..io import SpecSyError, check_file_dataframe
 
 _logger = logging.getLogger('SpecSy')
 

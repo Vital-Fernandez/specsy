@@ -1,6 +1,6 @@
 import numpy as np
 import astropy
-from lime.plots import save_close_fig_swicth, STANDARD_PLOT
+from lime.plots import save_close_fig_swicth, theme
 
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
 
@@ -9,7 +9,7 @@ def extinction_gradient(cHbeta_array, n_array, x, y_array, idcs_valid=None, line
                         save_address=None,  title=None, fig_cfg={}, ax_cfg={}):
 
     # Adjust default theme
-    PLOT_CONF = STANDARD_PLOT.copy()
+    PLOT_CONF = theme.fig_defaults()
 
     # Adjust the axis labels to include the reference line
     x_label = r'$f_{\lambda} - $' + f'$f_{{{ref_label.replace("$","")}}}$'

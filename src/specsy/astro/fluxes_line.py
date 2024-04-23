@@ -23,10 +23,8 @@ class EmissionFluxModel:
 
         # TODO this could read the attribute fun directly
         # Dictionary storing emission flux equation database (log scale)
-        emFluxDb_log = {'H1': self.ion_H1r_flux_log,
-                        'He1': self.ion_He1r_flux_log,
-                        'He2': self.ion_He2r_flux_log,
-                        'metals': self.metals_flux_log,
+        emFluxDb_log = {'H1': self.ion_H1r_flux_log, 'He1': self.ion_He1r_flux_log,
+                        'He2': self.ion_He2r_flux_log, 'metals': self.metals_flux_log,
                         'O2_7319A_b': self.ion_O2_7319A_b_flux_log}
 
         for i, lineLabel in enumerate(label_list):
@@ -103,8 +101,7 @@ class EmissionTensors(EmissionFluxModel):
         # Compile the theano functions for all the input emission lines
         for label, func in self.emFluxEqDict.items():
             func_params = tt.dscalars(self.emFluxParamDict[label])
-            self.emFluxEqDict[label] = function(inputs=func_params,
-                                                outputs=func(*func_params),
+            self.emFluxEqDict[label] = function(inputs=func_params, outputs=func(*func_params),
                                                 on_unused_input='ignore')
 
         # Assign function dictionary with flexible arguments

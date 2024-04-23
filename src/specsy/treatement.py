@@ -7,7 +7,7 @@ from pathlib import Path
 from pandas import DataFrame
 import pyneb as pn
 
-from .io import label_decomposition, parseConfDict, fits_db, check_file_dataframe, check_file_configuration, SpecSy_error
+from .io import label_decomposition, parseConfDict, fits_db, check_file_dataframe, check_fit_conf, SpecSyError
 from .operations.interpolation import GridWrapper, emissivity_grid_calc
 from .inference.emission import PhotoIonizationModels
 from .astro.fluxes_line import EmissionFluxModel
@@ -20,21 +20,21 @@ _logger = logging.getLogger('SpecSy')
 
 class ChemicalModel:
 
-    #Container to store the emissivity interpolators
+    # Container to store the emissivity interpolators
     emis_interp = None
 
-    def __init__(self, obs_cfg=None, object_id=None, default_cfg_prefix="default", log=None, reset_interp=False):
+    def __init__(self, obs_cfg=None, object_id=None, default_cfg_prefix="default", log=None, reset_grids=False):
 
         self.id = None
         self.log = None
         self.cfg = None
         self.line_list = None
         self.norm_list = None
-        self.reset_interp = reset_interp
+        self.reset_interp = reset_grids
 
         # Input model configuration
         if obs_cfg is not None:
-            self.cfg = check_file_configuration(obs_cfg, default_cfg_prefix, object_id)
+            self.cfg = check_fit_conf(obs_cfg, default_cfg_prefix, object_id)
 
         # Input lines log
         if log is not None:
@@ -68,7 +68,7 @@ class ChemicalModel:
                     self.log['flambda'] = flambda_array
 
                 else:
-                    raise SpecSy_error(f'For the extinction calculation you need to introduce a red_curve_name and a R_v.'
+                    raise SpecSyError(f'For the extinction calculation you need to introduce a red_curve_name and a R_v.'
                                        f"These parameters weren't be found on the input configuration:"
                                        f"\n{pprint.pprint(self.cfg)}")
 

@@ -11,10 +11,10 @@ synthLinesLogPath = Path('./sample_data/manga_lines_log.txt')
 output_db = Path('./sample_data')
 
 # Create observation object
-log = sy.load_log(synthLinesLogPath, flux_type='gauss', norm_line='H1_4861A')
+log = sy.load_frame(synthLinesLogPath, flux_type='profile_flux', norm_line='H1_4861A')
 
 # Compute emissivity grids
-emiss = sy.EmissGridGen(log)
+emiss = sy.EmissGridGen(log) # TODO read from file
 
 # Model
 model = sy.ChemicalModel(obs_cfg=synthConfigPath, object_id='synth', log=log)
@@ -22,9 +22,31 @@ model = sy.ChemicalModel(obs_cfg=synthConfigPath, object_id='synth', log=log)
 # Compute the extinction
 model.gas_extinction(red_curve="G03 LMC", R_v=3.4)
 
-print(obj.log)
 # pprint.pprint(obj.cfg)
+'''
+Define input lines, input fluxes, input err, normalizing line (inputs_class) (function to crop the log)
 
+Get prior configuration (priors_class)
+
+Get interpoltaors (interpolators_class) (innate)
+
+Define extinction curve
+
+Create flux equations dict (equations_class)
+
+Define model/run
+
+self.indcsLabelLines
+self.indcsIonLines
+self.idcs_highTemp_ions
+self.ionicAbundCheck 
+
+Define saving output
+
+
+
+
+'''
 
 
 # # Load emission lines

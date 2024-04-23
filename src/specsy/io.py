@@ -4,7 +4,7 @@ import configparser
 from pathlib import Path
 from lime.transitions import label_decomposition
 import lime
-from lime.io import load_cfg, save_cfg, save_log, check_file_dataframe, check_file_configuration
+from lime.io import load_cfg, save_cfg, save_frame, check_file_dataframe, check_fit_conf
 from collections.abc import Sequence
 from astropy.io import fits
 
@@ -19,17 +19,16 @@ FITS_OUTPUTS_EXTENSION = {'parameter_list': '20A',
                           'true': 'E'}
 
 
-
-class SpecSy_error(Exception):
+class SpecSyError(Exception):
     """SpecSy exception function"""
 
 
 # Load log
-def load_log(file_address, page: str ='LINELOG', sample_levels: list =['id', 'line'], flux_type=None, lines_list=None,
+def load_frame(file_address, page: str ='LINELOG', sample_levels: list =['id', 'line'], flux_type=None, lines_list=None,
              norm_line=None):
 
     # Return
-    log = lime.load_log(file_address, page, sample_levels)
+    log = lime.load_frame(file_address, page, sample_levels)
 
     # Create new column for the lines flux with the requested type (None for user to introduce "line_flux")
     if flux_type is not None:
@@ -40,6 +39,7 @@ def load_log(file_address, page: str ='LINELOG', sample_levels: list =['id', 'li
         lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column='line_flux', column_name='line_flux')
 
     return log
+
 
 def load_HII_CHI_MISTRY_grid(log_scale=False, log_zero_value = -1000):
 
@@ -94,6 +94,7 @@ def load_HII_CHI_MISTRY_grid(log_scale=False, log_zero_value = -1000):
 
     return grid_dict, grid_axes
 
+
 # Function to save a parameter dictionary into a cfg dictionary
 def parseConfDict(output_file, param_dict, section_name, clear_section=False):
     # TODO add logic to erase section previous results
@@ -128,6 +129,7 @@ def parseConfDict(output_file, param_dict, section_name, clear_section=False):
         output_cfg.write(f)
 
     return
+
 
 # Function to map variables to strings
 def formatConfEntry(entry_value, float_format=None, nan_format='nan'):
@@ -168,6 +170,7 @@ def formatConfEntry(entry_value, float_format=None, nan_format='nan'):
         formatted_value = 'None'
 
     return formatted_value
+
 
 # Function to save the PYMC3 simulation as a fits log
 def fits_db(fits_address, model_db, ext_name='', header=None):
@@ -271,3 +274,64 @@ def fits_db(fits_address, model_db, ext_name='', header=None):
         hdul.writeto(fits_address, overwrite=True, output_verify='fix')
 
     return
+
+
+def save_trace(trace, prior_dict, line_labels, input_fluxes, input_err, inference_model):
+
+    #  ---------------------------- Treat traces and store outputs
+    model_params = []
+    output_dict = {}
+    traces_ref = np.array(trace.varnames)
+    for param in traces_ref:
+
+        # Exclude pymc3 variables
+        if ('_log__' not in param) and ('interval' not in param):
+
+            trace_array = np.squeeze(trace[param])
+
+            # Restore prior parametrisation
+            if param in prior_dict:
+
+                reparam0, reparam1 = prior_dict[param][3], prior_dict[param][4]
+                if 'logParams_list' in prior_dict:
+                    if param not in prior_dict['logParams_list']:
+                        trace_array = trace_array * reparam0 + reparam1
+                    else:
+                        trace_array = np.power(10, trace_array * reparam0 + reparam1)
+                else:
+                    trace_array = trace_array * reparam0 + reparam1
+
+                model_params.append(param)
+                output_dict[param] = trace_array
+                trace.add_values({param: trace_array}, overwrite=True)
+
+            # Line traces
+            elif param.endswith('_Op'):
+
+                # Convert to natural scale
+                trace_array = np.power(10, trace_array)
+
+                if param == 'calcFluxes_Op':  # Flux matrix case
+                    for i in range(trace_array.shape[1]):
+                        output_dict[line_labels[i]] = trace_array[:, i]
+                    trace.add_values({'calcFluxes_Op': trace_array}, overwrite=True)
+                else:  # Individual line
+                    ref_line = param[:-3]  # Not saving '_Op' extension
+                    output_dict[ref_line] = trace_array
+                    trace.add_values({param: trace_array}, overwrite=True)
+
+            # None physical
+            else:
+                model_params.append(param)
+                output_dict[param] = trace_array
+
+    # ---------------------------- Save inputs
+    inputs = {'lines_list': line_labels,
+              'line_fluxes': input_fluxes,
+              'line_err': input_err,
+              'parameter_list': model_params}
+
+    # ---------------------------- Store fit
+    fit_results = {'model': inference_model, 'trace': trace, 'inputs': inputs, 'outputs': output_dict}
+
+    return fit_results

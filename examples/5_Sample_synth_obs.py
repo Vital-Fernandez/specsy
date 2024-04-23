@@ -18,7 +18,7 @@ model_cfg = sy.load_cfg(synthConfigPath)
 # Load emission lines
 input_lines = model_cfg['inference_model_configuration']['input_lines_list']
 merged_lines = {'O2_3726A_m': 'O2_3726A+O2_3729A', 'O2_7319A_m': 'O2_7319A+O2_7330A'}
-log = sy.load_log(synthLinesLogPath)
+log = sy.load_frame(synthLinesLogPath)
 
 normLine = 'H1_4861A'
 idcs_lines = (log.index != normLine)
@@ -47,9 +47,11 @@ obj1_model.simulation_configuration(prior_conf_dict=model_cfg['priors_configurat
 # Declare simulation inference model
 obj1_model.inference_model()
 
+obj1_model.save_fit(output_db, ext_name='synth_sampling')
+
+
 # Run the simulation
-# obj1_model.run_sampler(2000, 2000, nchains=4, njobs=4)
-# obj1_model.save_fit(output_db)
+# obj1_model.run_sampler(2000, 2000, nchains=4, njobs=1)
 
 # # Load the results
 # fit_pickle = sr.load_fit_results(output_db)

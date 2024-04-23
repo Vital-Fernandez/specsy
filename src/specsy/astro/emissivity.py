@@ -86,7 +86,6 @@ class EmissGridGen:
                 line = Line(line_name)
 
                 # Calculate and store emissivity ratio
-                print(line)
                 atom_pn = get_pyneb_element(line)
                 grid_i = atom_pn.getEmissivity(temp_flatten_range, den_flatten_range, wave=line.wavelength[0],
                                                product=False)
@@ -110,6 +109,7 @@ class EmissGridGen:
                 EmissGridGen.dict[line_name] = grid_i/norm_flux
 
         return
+
 
 class EmissivitySurfaceFitter:
 
@@ -291,14 +291,14 @@ class IonEmissivity(EmissivitySurfaceFitter):
             else:
                 # Single line:
                 if ('_m' not in line_label) and ('_b' not in line_label):
-                    emis_grid_i = ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=wave_array[i])
+                    emis_grid_i = ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=np.round(wave_array[i]))
 
                 # Blended line
                 else:
                     emis_grid_i = np.zeros(Hbeta_emis_grid.shape)
                     for component in combined_dict[line_label].split('+'):
                         ion, wave, latex_label = label_decomposition(component, scalar_output=True)
-                        emis_grid_i += ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=wave)
+                        emis_grid_i += ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=np.round(wave))
 
                 if grids_folder is not None:
                     np.save(grids_folder, emis_grid_i)
