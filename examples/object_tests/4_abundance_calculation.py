@@ -2,7 +2,7 @@ import lime
 import specsy as sy
 from pathlib import Path
 import pyneb as pn
-from specsy.astro.chemistry import sufur_diaz_2022
+from specsy.models.chemistry import sufur_diaz_2022
 
 # Parameters
 cHbeta = 0.93

@@ -2,10 +2,13 @@ import numpy as np
 import pymc
 import pytensor
 from pytensor import tensor as tt, function
-from ..astro.fluxes_line import EmissionTensors
-from ..astro.chemistry import TOIII_from_TSIII_relation, TOII_from_TOIII_relation
+from ..models.fluxes_line import EmissionTensors
+from ..models.chemistry import TOIII_from_TSIII_relation, TOII_from_TOIII_relation
 from pymc.sampling.jax import sample_blackjax_nuts
-from ..io import save_trace
+from ..innate import save_inference_data
+import arviz as az
+import xarray as xr
+from warnings import catch_warnings, simplefilter
 
 log10_factor = 1.0 / np.log(10)
 
@@ -171,7 +174,7 @@ class PhotoIonizationModels(EmissionTensors):
 
         return
 
-    def inference_model(self, fit_T_low=True, fit_T_high=True):
+    def inference_model(self, fit_T_low=True, fit_T_high=True, fname=None, true_values=None):
 
         # Container to store the synthetic line fluxes
         self.prior_vars = {}  # FIXME do I need this one for loop inferences
@@ -194,18 +197,18 @@ class PhotoIonizationModels(EmissionTensors):
 
         with pymc.Model() as self.inferenModel:
 
-            # Declare model parameters priors
+            # Declare models parameters priors
             self.set_prior('n_e')
             self.set_prior('cHbeta')
 
-            # Establish model temperature structure
+            # Establish models temperature structure
             self.temperature_selection(fit_T_low, fit_T_high)
 
             # Define grid interpolation variables
             emisCoord_low = tt.stack([[self.prior_vars['T_low'][0]], [self.prior_vars['n_e'][0]]], axis=-1)
             emisCoord_high = tt.stack([[self.prior_vars['T_high'][0]], [self.prior_vars['n_e'][0]]], axis=-1)
 
-            # Establish model composition
+            # Establish models composition
             for ion in self.obsIons:
                 if ion != 'H1':
                     self.set_prior(ion, abund_type=True, name_param=ion)
@@ -246,6 +249,7 @@ class PhotoIonizationModels(EmissionTensors):
                                                     T_high=self.prior_vars['T_high'])
 
                 if self.idx_analysis_lines[i]:
+
                     # Line Flux
                     lineInt = self.gridInterp[lineLabel](grid_coord)
 
@@ -265,19 +269,60 @@ class PhotoIonizationModels(EmissionTensors):
             # Likelihood gas components
             Y_emision = pymc.Normal('Y_emision', mu=fluxTensor, sigma=inputFluxErr, observed=inputFlux)
 
-            trace = pymc.sample(2000, tune=2000, chains=4, cores=1, init='auto', progressbar=True)
+            # Run the data
+            inference_data = pymc.sample(2000, tune=2000, chains=4, cores=4, init='auto', progressbar=True)
 
-            self.fit_results = save_trace(trace, self.priorDict, self.lineLabels, self.emissionFluxes,
-                                            self.emissionErr, self.inferenModel)
+            self.package_results(fname, inference_data, self.priorDict, true_values)
 
-            # trace = sample_blackjax_nuts(2000, tune=2000, chains=4, cores=4, progress_bar=True)
-            # pymc.sampling_jax
-            # pymc.sampling.jax.sample_numpyro_nuts(
-            # Display simulation data
-            # displaySimulationData(self.inferenModel, self.priorDict)
+        return
 
-        # self.inferenModel.profile(self.inferenModel.logpt).summary()
-        # self.inferenModel.profile(pymc3.gradient(self.inferenModel.logpt, self.inferenModel.vars)).summary()
+    def package_results(self, fname, inference_data, prior_dict=None, true_values=None):
+
+        # First save it just in case
+        az.to_netcdf(inference_data, fname)
+
+        # Recalibrate the fluxes
+        if "calcFluxes_Op" in inference_data.posterior:
+            inference_data.posterior['calcFluxes_Op'] = np.power(10, inference_data.posterior['calcFluxes_Op'])
+
+        # Remove the parametrization
+        if prior_dict is not None:
+            parameter_list = list(inference_data.posterior.data_vars)
+            for param in parameter_list:
+                if param in prior_dict:
+
+                    # Recover the trace and parametrization
+                    pos_xarr = inference_data.posterior[param]
+                    reparam0, reparam1 = prior_dict[param][3], prior_dict[param][4]
+
+                    if 'logParams_list' in prior_dict:
+                        if param not in prior_dict['logParams_list']:
+                            pos_xarr = pos_xarr * reparam0 + reparam1
+                        else:
+                            pos_xarr = np.power(10, pos_xarr * reparam0 + reparam1)
+                    else:
+                        pos_xarr = pos_xarr * reparam0 + reparam1
+
+                    # Reset the data
+                    inference_data.posterior[param] = pos_xarr
+
+            # Store the inputs in a custom group
+            inputs_dict = {'fluxes': xr.DataArray(data=self.emissionFluxes, dims=['labels'],
+                                                  coords={'labels': self.lineLabels}, name='fluxes'),
+                           'errs': xr.DataArray(data=self.emissionErr, dims=['labels'],
+                                                coords={'labels': self.lineLabels}, name='errs')}
+        else:
+            inputs_dict = None
+
+        # Add the true values if provided
+        if true_values is not None:
+            true_values_dict = {'magnitude': xr.DataArray(data=list(true_values.values()), dims=['parameters'],
+                                             coords={'parameters': list(true_values.keys())}, name='magnitude')}
+        else:
+            true_values_dict = None
+
+        # Save to a file
+        save_inference_data(fname, inference_data, inputs=inputs_dict, true_values=true_values_dict)
 
         return
 
@@ -301,7 +346,7 @@ class PhotoIonizationModels(EmissionTensors):
 
     def run_sampler(self, iterations, tuning, nchains=2, njobs=2, init='auto'):
 
-        # ---------------------------- Launch model
+        # ---------------------------- Launch models
         print('\n- Launching sampler')
         trace = pymc.sample(iterations, tune=tuning, chains=nchains, cores=njobs, model=self.inferenModel, init=init,
                              progressbar=True)
@@ -360,6 +405,6 @@ class PhotoIonizationModels(EmissionTensors):
                   'parameter_list': model_params}
 
         # ---------------------------- Store fit
-        self.fit_results = {'model': self.inferenModel, 'trace': trace, 'inputs': inputs, 'outputs': output_dict}
+        self.fit_results = {'models': self.inferenModel, 'trace': trace, 'inputs': inputs, 'outputs': output_dict}
 
         return

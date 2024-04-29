@@ -2,7 +2,7 @@ import numpy as np
 import specsy as sy
 
 from pathlib import Path
-from specsy.astro.chemistry import TOIII_from_TSIII_relation
+from specsy.models.chemistry import TOIII_from_TSIII_relation
 from lime.transitions import log_from_line_list
 
 # Load fitting configuration file

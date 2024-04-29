@@ -1,7 +1,7 @@
 import numpy as np
 import specsy as sy
 from pathlib import Path
-from specsy.astro.extinction import flambda_calc
+from specsy.models.extinction import flambda_calc
 from specsy.operations.interpolation import emissivity_grid_calc
 
 from fastprogress import fastprogress
@@ -10,7 +10,7 @@ fastprogress.printing = lambda: True
 # Data location
 synthConfigPath = Path('./sample_data/synth_conf.toml')
 synthLinesLogPath = Path('./sample_data/synth_linesLog.txt')
-output_db = Path('./sample_data')
+output_db = Path('./sample_data/synth_fitting_true.nc')
 
 # Load simulation parameters
 model_cfg = sy.load_cfg(synthConfigPath)
@@ -26,7 +26,7 @@ lineLabels = log.loc[idcs_lines].index
 lineWaves = log.loc[idcs_lines, 'wavelength'].values
 lineIons = log.loc[idcs_lines, 'ion'].values
 lineFluxes = log.loc[idcs_lines, 'intg_flux'].values
-lineErr = log.loc[idcs_lines, 'intg_err'].values
+lineErr = log.loc[idcs_lines, 'intg_flux_err'].values
 
 # Compute the reddening curve for the input emission lines
 flambda = flambda_calc(lineWaves, red_curve="G03 LMC", R_v=3.4, norm_wavelength=4861)
@@ -37,17 +37,17 @@ emis_grid_interp = emissivity_grid_calc(lines_array=lineLabels, comp_dict=merged
 # Declare sampler
 obj1_model = sy.SpectraSynthesizer(emis_grid_interp)
 
-# Declare region physical model
+# Declare region physical models
 obj1_model.define_region(lineLabels, lineFluxes, lineErr, flambda, merged_lines)
 
 # Declare sampling properties
 obj1_model.simulation_configuration(prior_conf_dict=model_cfg['priors_configuration'],
                                     highTempIons=model_cfg['simulation_properties']['high_temp_ions_list'],)
 
-# Declare simulation inference model
-obj1_model.inference_model()
+# Declare simulation inference models
+obj1_model.inference_model(fname=output_db, true_values=model_cfg['true_values'])
+print('SE ACABO')
 
-obj1_model.save_fit(output_db, ext_name='synth_sampling')
 
 
 # Run the simulation

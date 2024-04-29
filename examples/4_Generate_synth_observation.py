@@ -1,14 +1,16 @@
 import numpy as np
 import pandas as pd
+
+import specsy
 import specsy as sy
 
-from specsy.astro.chemistry import TOIII_from_TSIII_relation
-from specsy.astro.extinction import flambda_calc
+from specsy.models.chemistry import TOIII_from_TSIII_relation
+from specsy.models.extinction import flambda_calc
 from specsy.operations.tensors import EmissionTensors
 from specsy.operations.interpolation import emissivity_grid_calc
-import pyneb as pn
+from pathlib import Path
 
-# Load the model configuration
+# Load the models configuration
 model_cfg = sy.load_cfg('./sample_data/default_cfg.toml')
 
 # Set the synthetic observation parameter values
@@ -31,25 +33,30 @@ param_dict = {'n_e': 150.0,
               'Ar4': 5.065 + 0.15}
 
 # Declare lines to simulate
-input_lines = ['H1_4341A', 'H1_4861A', 'H1_6563A',
-                'He1_4026A', 'He1_4471A', 'He1_5876A', 'He1_6678A', 'He1_7065A', 'He2_4686A',
+input_lines = ['H1_4340A', 'H1_4861A', 'H1_6563A',
+                'He1_4026A', 'He1_4471A', 'He1_5876A', 'He1_6678A', 'He1_7065A', 'He2_4685A',
                 'O2_3726A_m', 'O2_7319A_m', 'O3_4363A', 'O3_4959A', 'O3_5007A',
-                'Ne3_3968A',
-                'N2_6548A', 'N2_6584A',
-                'S2_6716A', 'S2_6731A', 'S3_6312A', 'S3_9069A', 'S3_9531A',
+                'Ne3_3869A',
+                'N2_6548A', 'N2_6583A',
+                'S2_6716A', 'S2_6731A', 'S3_6312A', 'S3_9068A', 'S3_9530A',
                 'Ar3_7136A', 'Ar4_4740A',
                 'Fe3_4658A']
 
 merged_lines = {'O2_3726A_m': 'O2_3726A+O2_3729A',
                 'O2_7319A_m': 'O2_7319A+O2_7330A'}
 
+# New interpolators
+# emissivity_file = Path('./sample_data/emissivity_db.nc')
+# emis_db = specsy.Innate(emissivity_file, lines_frame=None, norm_header='norm_line', interpolators='pytensor')
+# dm_model = specsy.models.DirectMethod(emis_db, R_v=3.4, extinction_law="G03 LMC")
+
 # Generate dataframe with store line data
 particle_array, wave_array, latex_array = sy.label_decomposition(input_lines, fit_conf=merged_lines)
-lineLogHeaders = ['wavelength', 'intg_flux', 'intg_err', 'ion', 'blended_label']
+lineLogHeaders = ['wavelength', 'intg_flux', 'intg_flux_err', 'particle', 'group_label', 'norm_line']
 
 line_log = pd.DataFrame(index=input_lines, columns=lineLogHeaders)
-line_log = line_log.assign(wavelength=wave_array, ion=particle_array, blended_label='None')
-for line, components in merged_lines.items(): line_log.loc[line, 'blended_label'] = components
+line_log = line_log.assign(wavelength=wave_array, ion=particle_array, group_label='None')
+for line, components in merged_lines.items(): line_log.loc[line, 'group_label'] = components
 line_log.sort_values(by=['wavelength'], ascending=True, inplace=True)
 
 # New line parameter arrays sorted by wavelenght
@@ -96,12 +103,18 @@ for i in range(len(wavelength_array)):
                                       O3=param_dict['O3'],
                                       T_high=param_dict['T_high'])
 
+    # dm_model.eq_tt.compute_flux(lineLabel, line_emis[0][0], param_dict['cHbeta'], lineFlambda, param_dict[lineIon],
+    #                             ftau=0.0, O3=param_dict['O3'], T_high=param_dict['T_high'])
+
     print(f'{i}) {lineLabel}, f_lambda = {f_lambda_array[i]:0.3f}, F_i = {flux_array[i]:0.3f}')
 
 # Convert to a natural scale
 lineFluxes = np.power(10, flux_array)
 line_log['intg_flux'] = lineFluxes
-line_log['intg_err'] = lineFluxes * model_cfg['simulation_properties']['lines_minimum_error']
+line_log['intg_flux_err'] = lineFluxes * model_cfg['simulation_properties']['lines_minimum_error']
+line_log['particle'] = particle_array
+line_log['norm_line'] = 'H1_4861A'
+
 
 # # We proceed to safe the synthetic spectrum as if it were a real observation
 log_file_address = './sample_data/synth_linesLog.txt'

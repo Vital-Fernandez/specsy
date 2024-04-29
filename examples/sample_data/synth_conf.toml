@@ -33,7 +33,7 @@ extinction_check = true
 iteration_steps = 7000
 tuning_steps = 2000
 sampler = "auto"
-input_lines_list = [ "H1_4341A", "H1_4861A", "H1_6563A", "He1_4026A", "He1_4471A", "He1_5876A", "He1_6678A", "He1_7065A", "He2_4686A", "O2_3726A_m", "O2_7319A_m", "O3_4363A", "O3_4959A", "O3_5007A", "Ne3_3968A", "N2_6548A", "N2_6584A", "S2_6716A", "S2_6731A", "S3_6312A", "S3_9069A", "S3_9531A", "Ar3_7136A", "Ar4_4740A", "Fe3_4658A",]
+input_lines_list = [ "H1_4340A", "H1_4861A", "H1_6563A", "He1_4026A", "He1_4471A", "He1_5876A", "He1_6678A", "He1_7065A", "He2_4685A", "O2_3726A_m", "O2_7319A_m", "O3_4363A", "O3_4959A", "O3_5007A", "Ne3_3869A", "N2_6548A", "N2_6583A", "S2_6716A", "S2_6731A", "S3_6312A", "S3_9068A", "S3_9530A", "Ar3_7136A", "Ar4_4740A", "Fe3_4658A",]
 
 [priors_configuration]
 logParams_list = [ "He1", "He2",]

@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 import pytensor.tensor as tt
 from ..io import load_HII_CHI_MISTRY_grid, label_decomposition
-from ..astro.emissivity import IonEmissivity
+from ..models.emissivity import IonEmissivity
 
 
 def emissivity_grid_calc(lines_array, comp_dict, temp_grid_points=(9000, 20000, 251), den_grid_points=(1, 600, 101)):

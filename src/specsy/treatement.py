@@ -10,9 +10,8 @@ import pyneb as pn
 from .io import label_decomposition, parseConfDict, fits_db, check_file_dataframe, check_fit_conf, SpecSyError
 from .operations.interpolation import GridWrapper, emissivity_grid_calc
 from .inference.emission import PhotoIonizationModels
-from .astro.fluxes_line import EmissionFluxModel
-from .astro.extinction import flambda_calc
-from .astro.emissivity import emissivity_grid_calculation
+from .models.fluxes_line import EmissionFluxModel
+from .models.extinction import flambda_calc
 from .tools import extract_fluxes, normalize_fluxes
 
 _logger = logging.getLogger('SpecSy')
@@ -32,7 +31,7 @@ class ChemicalModel:
         self.norm_list = None
         self.reset_interp = reset_grids
 
-        # Input model configuration
+        # Input models configuration
         if obs_cfg is not None:
             self.cfg = check_fit_conf(obs_cfg, default_cfg_prefix, object_id)
 

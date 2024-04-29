@@ -1,9 +1,14 @@
 import logging
 import numpy as np
+import pandas as pd
 import pyneb as pn
 from lime import label_decomposition, Line
+from lime.io import check_file_dataframe
 from inspect import getfullargspec
 from scipy.optimize import curve_fit
+from pathlib import Path
+from astropy.io import fits
+
 
 _logger = logging.getLogger('SpecSy')
 
@@ -21,94 +26,118 @@ def get_pyneb_element(line):
     return atom
 
 
-def emissivity_grid_calculation(emis_dict, log, temp_grid, den_grid):
+def generate_emis_grid(lines_frame, norm_header, temp_range=(9000, 20000, 251), den_range=(1, 600, 101), log_scale=True):
 
-    # Container create for observation declaration
-    emis_dict = {} if emis_dict is None else emis_dict
+    # Container for the data
+    grid_dict = {}
 
-    # Grid generation
-    temp_range = np.linspace(temp_grid[0], temp_grid[1], temp_grid[2])
-    den_range = np.linspace(den_grid[0], den_grid[1], den_grid[2])
-    X, Y = np.meshgrid(temp_range, den_range)
-    temp_flatten_range, den_flatten_range = X.flatten(), Y.flatten()
+    # Check if variable or file
+    lines_frame = check_file_dataframe(lines_frame, pd.DataFrame)
+
+    # Compute the ranges:
+    temp_range = np.linspace(temp_range[0], temp_range[1], temp_range[2])
+    den_range = np.linspace(den_range[0], den_range[1], den_range[2])
 
     # Loop through the lines and add missing lines
-    for line_name in log.index:
+    print(f'\n- Generating emissivity grids')
+    for i, line_name in enumerate(lines_frame.index):
 
-        if line_name not in emis_dict:
+        # Target line emissivity
+        print(f'-- {line_name}')
+        line = Line(line_name, band=lines_frame)
 
-            line = Line(line_name)
-            norm_line = Line(log.loc[line_name, 'norm_line'])
-
-            # Normalization emissivity
-            if norm_line not in emis_dict:
-                atom_pn = get_pyneb_element(norm_line)
-                grid_i = atom_pn.getEmissivity(temp_flatten_range, den_flatten_range, wave=norm_line.wavelength[0], product=False)
-                emis_dict[norm_line] = grid_i
-
-            if line.label == 'N2_6584A':
-                print('bicho')
-
-            # Calculate and store emissivity ratio
+        # Loop through the components:
+        if not line.merged_check:
             atom_pn = get_pyneb_element(line)
-            if (atom_pn is not None) and (norm_line in emis_dict):
-                grid_i = atom_pn.getEmissivity(temp_flatten_range, den_flatten_range, wave=line.wavelength[0], product=False)
-                emis_dict[line] = grid_i/emis_dict[norm_line]
+            grid_i = atom_pn.getEmissivity(temp_range, den_range, wave=np.round(line.wavelength[0]))
 
-    return
+        else:
+            grid_i = np.zeros((temp_range.size, den_range.size))
+            for component in line.group_label.split('+'):
+                line_i = Line(component, band=lines_frame)
+                atom_pn = get_pyneb_element(line_i)
+                grid_i += atom_pn.getEmissivity(temp_range, den_range, wave=np.round(line_i.wavelength[0]))
+
+        grid_dict[line_name] = grid_i
+        print(f'-- shape: {grid_i.shape}')
+
+    # Normalize the lines if requested
+    if norm_header is not None:
+
+        norm_dict = {}
+        if norm_header in lines_frame.columns:
+
+            # Loop through the lines
+            print(f'-- Normalizing the emissivities')
+            for i, line_name in enumerate(lines_frame.index):
+
+                norm_line = Line(lines_frame.loc[line_name, norm_header])
+
+                # Save it for next time
+                if norm_line.label not in norm_dict:
+                    atom_pn = get_pyneb_element(norm_line)
+                    norm_dict[norm_line.label] = atom_pn.getEmissivity(temp_range, den_range,
+                                                                       wave=np.round(norm_line.wavelength[0]))
+
+                # Normalization
+                grid_dict[line_name] = grid_dict[line_name] / norm_dict[norm_line.label]
+
+        else:
+            raise (f'The input lines log does not have the input normalization header "{norm_header}". '
+                   f'The emissivities cannot be not be normalized')
 
 
-class EmissGridGen:
+    # Convert to log scale if requested:
+    if log_scale:
+        print(f'-- Computing log scale for the emissivities')
+        for i, line_name in enumerate(lines_frame.index):
+            grid_dict[line_name] = np.log10(grid_dict[line_name])
 
-    dict = None
+    return grid_dict
 
-    def __init__(self, log, norm_header='norm_line', temp_range=(9000, 20000, 251), den_range=(1, 600, 101),
-                 update_grids=False):
 
-        # Initialize dictionary if first time
-        if EmissGridGen.dict is None:
-            EmissGridGen.dict = {}
+
+class EmissivityGrids(dict):
+
+    def __init__(self):
+
+        # Assign the attributes
+        self.fname = None
+        self.temp_range = None
+        self.den_range = None
+        self.transitions = None
+        self.fname = None
+
+    def index_data_grids(self, fname=None, lines_frame=None, norm_header=None, temp_range=(9000, 20000, 251),
+                         den_range=(1, 600, 101), update_grids=False):
+
+        # Assign the attributes
+        self.fname = None
+        self.temp_range = temp_range
+        self.den_range = den_range
+        self.transitions = None
+        self.fname = None if fname is None else Path(fname)
+
+        # Load the lines database if available:
+        self.load_emissivity_grids()
 
         # Compute the temperature and density range
         self.temp_range = np.linspace(temp_range[0], temp_range[1], temp_range[2])
         self.den_range = np.linspace(den_range[0], den_range[1], den_range[2])
 
-        # Compute 2D arrays
-        X, Y = np.meshgrid(temp_range, den_range)
-        temp_flatten_range, den_flatten_range = X.flatten(), Y.flatten()
+        # Generate the grid database
+        if (len(self) == 0) or update_grids: # FIXME I need to normalize by hbeta if requested
+            data_dict = generate_emis_grid(lines_frame, norm_header, self.temp_range, self.den_range)
+            self.update(data_dict)
 
-        # Loop through the lines and add missing lines
-        for line_name in log.index:
-
-            if (line_name not in EmissGridGen.dict) or update_grids:
-
-                # Target line emissivity
-                line = Line(line_name)
-
-                # Calculate and store emissivity ratio
-                atom_pn = get_pyneb_element(line)
-                grid_i = atom_pn.getEmissivity(temp_flatten_range, den_flatten_range, wave=line.wavelength[0],
-                                               product=False)
-
-                # Establish normalization
-                norm_line = None
-                if norm_header is not None:
-                    if norm_header in log.columns:
-                        norm_line = Line(log.loc[line_name, norm_header])
-                        if (norm_line not in EmissGridGen.dict) or update_grids:
-                            atom_pn = get_pyneb_element(norm_line)
-                            EmissGridGen.dict[norm_line] = atom_pn.getEmissivity(temp_flatten_range, den_flatten_range,
-                                                                                 wave=norm_line.wavelength[0],
-                                                                                 product=False)
-                    else:
-                        raise (f'The input lines log does not have the input normalization header "{norm_header}". '
-                               f'The emissivities cannot be not be normalized')
-
-                # Normalize and save
-                norm_flux = EmissGridGen.dict[norm_line] if norm_line is not None else 1
-                EmissGridGen.dict[line_name] = grid_i/norm_flux
+        # Save the database or overwrite
+        if self.fname is not None:
+            if (self.fname.is_file() is False) or update_grids:
+                self.save_emissivity_grids()
 
         return
+
+
 
 
 class EmissivitySurfaceFitter:

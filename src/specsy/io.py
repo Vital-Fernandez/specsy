@@ -8,6 +8,7 @@ from lime.io import load_cfg, save_cfg, save_frame, check_file_dataframe, check_
 from collections.abc import Sequence
 from astropy.io import fits
 
+
 FITS_INPUTS_EXTENSION = {'lines_list': '20A', 'line_fluxes': 'E', 'line_err': 'E'}
 
 FITS_OUTPUTS_EXTENSION = {'parameter_list': '20A',
@@ -25,7 +26,7 @@ class SpecSyError(Exception):
 
 # Load log
 def load_frame(file_address, page: str ='LINELOG', sample_levels: list =['id', 'line'], flux_type=None, lines_list=None,
-             norm_line=None):
+               norm_line=None):
 
     # Return
     log = lime.load_frame(file_address, page, sample_levels)
@@ -332,6 +333,6 @@ def save_trace(trace, prior_dict, line_labels, input_fluxes, input_err, inferenc
               'parameter_list': model_params}
 
     # ---------------------------- Store fit
-    fit_results = {'model': inference_model, 'trace': trace, 'inputs': inputs, 'outputs': output_dict}
+    fit_results = {'models': inference_model, 'trace': trace, 'inputs': inputs, 'outputs': output_dict}
 
     return fit_results

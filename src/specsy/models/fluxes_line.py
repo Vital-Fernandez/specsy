@@ -91,7 +91,7 @@ class EmissionTensors(EmissionFluxModel):
 
         self.emtt = None
 
-        # Inherit Emission flux model
+        # Inherit Emission flux models
         print('\n- Compiling theano flux equations')
         EmissionFluxModel.__init__(self,  label_list, ion_list)
 

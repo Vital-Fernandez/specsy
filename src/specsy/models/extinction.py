@@ -10,7 +10,6 @@ from uncertainties import unumpy, ufloat
 from lmfit.models import LinearModel
 
 from ..tools import get_mixed_fluxes
-from ..plots import extinction_gradient
 from ..io import SpecSyError, check_file_dataframe
 
 _logger = logging.getLogger('SpecSy')
