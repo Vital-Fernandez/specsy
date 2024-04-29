@@ -4,8 +4,6 @@ from pathlib import Path
 from specsy.models.extinction import flambda_calc
 from specsy.operations.interpolation import emissivity_grid_calc
 
-from fastprogress import fastprogress
-fastprogress.printing = lambda: True
 
 # Data location
 synthConfigPath = Path('./sample_data/synth_conf.toml')

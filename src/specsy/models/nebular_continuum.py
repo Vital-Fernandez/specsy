@@ -101,6 +101,21 @@ class NebularContinua:
 
         return self.zanstra_calibration(wave, Te, Halpha_Flux, neb_gamma)
 
+    def components(self, wave, Te, He1_abund=0.1, He2_abund=0.001):
+
+        H_He_frac = 1 + He1_abund * 4 + He2_abund * 4
+
+        # Bound bound continuum
+        gamma_2q = self.boundbound_gamma(wave, Te)
+
+        # Free-Free continuum
+        gamma_ff = self.freefree_gamma(wave, Te, Z_ion=1.0)
+
+        # Free-Bound continuum
+        gamma_fb_HI = self.freebound_gamma(wave, Te, self.HI_fb_dict)
+
+        return gamma_2q, gamma_ff, gamma_fb_HI
+
     def gamma_spectrum(self, wave, Te, HeII_HII, HeIII_HII):
 
         H_He_frac = 1 + HeII_HII * 4 + HeIII_HII * 4
