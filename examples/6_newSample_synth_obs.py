@@ -14,7 +14,7 @@ output_db = Path('./sample_data/synth_fitting.nc')
 # Configuration
 cfg = sy.load_cfg(synthConfigPath)
 
-# Create a database with emissivity grids
+# # Create a database with emissivity grids
 # lines_db = lime.line_bands((3000, 10000))
 # lines_db['norm_line'] = 'H1_4861A'
 # lines_db['group_label'] = 'none'
@@ -28,17 +28,17 @@ cfg = sy.load_cfg(synthConfigPath)
 # save_grids(emissivity_file, emiss_dict)
 
 # Load lines observations
-# log = sy.load_frame(synthLinesLogPath, flux_type='intg')
-#
-# # Load emissivity grids and generate the interpolators
-# emiss_db = sy.Innate(emissivity_file, x_space=cfg['simulation_properties']['temp_grid_array'],
-#                      y_space=cfg['simulation_properties']['den_grid_array'])
-#
-# # Declare model
-# dm_twoTemps = sy.models.DirectMethod(emiss_grids=emiss_db, R_v=3.4, extinction_law="G03 LMC")
-#
-# # Declare model
-# dm_twoTemps.fit.frame(log, './sample_data/', 'synth_fitting', true_values=cfg['true_values'])
+log = sy.load_frame(synthLinesLogPath, flux_type='intg')
+
+# Load emissivity grids and generate the interpolators
+emiss_db = sy.Innate(emissivity_file, x_space=cfg['simulation_properties']['temp_grid_array'],
+                     y_space=cfg['simulation_properties']['den_grid_array'])
+
+# Declare model
+dm_twoTemps = sy.models.DirectMethod(emiss_grids=emiss_db, R_v=3.4, extinction_law="G03 LMC")
+
+# Declare model
+dm_twoTemps.fit.frame(log, './sample_data/', 'synth_fitting', true_values=cfg['true_values'])
 
 # Plot the results
 results_address = f'./sample_data/synth_fitting_infer_db.nc'

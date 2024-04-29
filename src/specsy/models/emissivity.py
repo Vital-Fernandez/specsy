@@ -59,7 +59,7 @@ def generate_emis_grid(lines_frame, norm_header, temp_range=(9000, 20000, 251), 
                 grid_i += atom_pn.getEmissivity(temp_range, den_range, wave=np.round(line_i.wavelength[0]))
 
         grid_dict[line_name] = grid_i
-        print(f'-- shape: {grid_i.shape}')
+        print(f'--- shape {grid_i.shape}')
 
     # Normalize the lines if requested
     if norm_header is not None:
