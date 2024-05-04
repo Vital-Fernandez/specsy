@@ -1,7 +1,13 @@
 import logging
 import numpy as np
 import pandas as pd
-import pyneb as pn
+
+try:
+    import pyneb as pn
+    pyneb_check = True
+except ImportError:
+    pyneb_check = False
+
 from lime import label_decomposition, Line
 from lime.io import check_file_dataframe
 from inspect import getfullargspec
