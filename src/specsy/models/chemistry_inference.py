@@ -38,27 +38,45 @@ def set_prior(param, prior_dict, abund_type=False, name_param=None, total_region
     return priorFunc
 
 
-def temperature_selection(self, fit_T_low=True, fit_T_high=True):
+# def temperature_selection(self, fit_T_low=True, fit_T_high=True):
+#
+#     if self.lowTemp_check and fit_T_low:
+#         self.set_prior('T_low')
+#
+#         if self.highTemp_check:
+#             self.set_prior('T_high')
+#         else:
+#             self.prior_vars['T_high'] = TOIII_from_TSIII_relation(self.prior_vars['T_low'])
+#
+#     else:
+#         if self.highTemp_check and fit_T_high:
+#             self.set_prior('T_high')
+#
+#         self.prior_vars['T_low'] = TOII_from_TOIII_relation(self.prior_vars['T_high'], self.prior_vars['n_e'])
+#
+#     return
 
-    if self.lowTemp_check and fit_T_low:
-        self.set_prior('T_low')
+def temperature_selection(Tlow_diag, Thigh_diag, prior_dict):
 
-        if self.highTemp_check:
-            self.set_prior('T_high')
-        else:
-            self.prior_vars['T_high'] = TOIII_from_TSIII_relation(self.prior_vars['T_low'])
+    # Both diagnostics available
+    if (not callable(Tlow_diag)) and (not callable(Thigh_diag)):
+        Tlow_prior, Thigh_prior = set_prior('T_low', prior_dict), set_prior('T_high', prior_dict)
 
+    # Only one:
     else:
-        if self.highTemp_check and fit_T_high:
-            self.set_prior('T_high')
+        if callable(Tlow_diag):
+            Thigh_prior = set_prior('T_high', prior_dict)
+            Tlow_prior = Tlow_diag(Thigh_prior)
 
-        self.prior_vars['T_low'] = TOII_from_TOIII_relation(self.prior_vars['T_high'], self.prior_vars['n_e'])
+        else:
+            Tlow_prior = set_prior('T_low', prior_dict)
+            Thigh_prior = Thigh_diag(Tlow_prior)
 
-    return
+    return Tlow_prior, Thigh_prior
 
 
 def direct_method_inference(fname, inputs, prior_dict, idcs_highTemp_ions, emiss_interp, eq_tt,
-                            fit_Tlow=True, fit_Thigh=True):
+                            Tlow_diag, Thigh_diag):
 
     # Container synthetic fluxes # FIXME do I need this one for loop inferences
     prior_vars = {}
@@ -90,9 +108,22 @@ def direct_method_inference(fname, inputs, prior_dict, idcs_highTemp_ions, emiss
         prior_vars['cHbeta'] = set_prior('cHbeta', prior_dict)
 
         # Establish models temperature structure
-        # temperature_selection(fit_Tlow, fit_Thigh)
-        prior_vars['T_low'] = set_prior('T_low', prior_dict)
-        prior_vars['T_high'] = set_prior('T_high', prior_dict)
+        # prior_vars['T_low'], prior_vars['T_high'] = temperature_selection(fit_Tlow, fit_Thigh, prior_dict)
+        # prior_vars['T_low'] = set_prior('T_low', prior_dict)
+        # prior_vars['T_high'] = set_prior('T_high', prior_dict)
+        # Both diagnostics available
+        if (not callable(Tlow_diag)) and (not callable(Thigh_diag)):
+            prior_vars['T_low'], prior_vars['T_high'] = set_prior('T_low', prior_dict), set_prior('T_high', prior_dict)
+
+        # Only one:
+        else:
+            if callable(Tlow_diag):
+                prior_vars['T_high'] = set_prior('T_high', prior_dict)
+                prior_vars['T_low'] = Tlow_diag(prior_vars['T_high'])
+
+            else:
+                prior_vars['T_low'] = set_prior('T_low', prior_dict)
+                prior_vars['T_high'] = Thigh_diag(prior_vars['T_low'])
 
         # Define grid interpolation variables
         emisCoord_low = tt.stack([[prior_vars['T_low'][0]], [prior_vars['n_e'][0]]], axis=-1)

@@ -37,7 +37,7 @@ def load_frame(file_address, page: str ='LINELOG', sample_levels: list =['id', '
 
     # Check for requested lines and their normalization
     if norm_line is not None:
-        lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column='line_flux', column_name='line_flux')
+        log = lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column='line_flux', column_name='line_flux')
 
     return log
 

@@ -182,6 +182,39 @@ def sufur_diaz_2022(lines_log, S2_lines=('S2_6717A', 'S2_6731A'), S3_lines=('S3_
     return np.mean(S_H), np.std(S_H)
 
 
+def TSIII_from_TOIII_relation(T_high):
+    # From Hagele et al 2006
+    return (1.19 * T_high / 10000.0 - 0.32) * 10000.0
+
+def direct_temp():
+
+    return
+
+
+METHODS_DICT = {'Hagele_2006': TSIII_from_TOIII_relation}
+
+
+def assign_temperature_diagnostic(line_list, diagnostic, temp_assign = True):
+
+    # Check if the mathod is in the library:
+    if diagnostic[0] in METHODS_DICT.keys():
+        diag_func = METHODS_DICT[diagnostic[0]]
+
+    # Confirm is a line:
+    else:
+        try:
+            line = lime.Line(diagnostic[0])
+            diag_func = diagnostic[0]
+        except:
+            raise KeyError(f'Input diagnostic {diagnostic[0]} is not recognized by Specsy')
+
+        if np.any(np.isin(diagnostic[0], line_list)):
+            diag_func = diagnostic[0]
+        else:
+            raise KeyError(f'Input diagnostic line {diagnostic[0]} is not available in observation')
+
+    return diag_func
+
 
 class DmInputs:
 
@@ -201,7 +234,8 @@ class DmInputs:
 
         # Crop to the target lines
         if lines_list is not None:
-            self.frame = self.frame.index.isin(lines_list)
+            idcs = self.frame.index.isin(lines_list)
+            self.frame = self.frame.loc[idcs]
 
         # Declare the inputs
         self.lines = self.frame.index.to_numpy()
@@ -278,32 +312,31 @@ class DmFunctions():
 
         # Prepare auxiliary parameters
         idcs_highTemp_ions = np.isin(inputs.particles, self._model.temp_zones['high'])
-        lowTemp_check = np.any(np.isin(self._model.temp_low_diag, inputs.lines))
-        highTemp_check = np.any(np.isin(self._model.temp_high_diag, inputs.lines))
+        lowTemp_check = assign_temperature_diagnostic(inputs.lines, self._model.temp_low_diag)
+        highTemp_check = assign_temperature_diagnostic(inputs.lines, self._model.temp_high_diag)
 
-        # Confirm all data is available
-        if lowTemp_check or highTemp_check:
+        # Output file
+        fname = self.output_path/f'{self.label_fit}_inference_data.nc'
+        print(f'\n- Launching direct method inference: ')
 
-            # Output file
-            fname = self.output_path/f'{self.label_fit}_inference_data.nc'
-            print(f'\n- Launching direct method inference: ')
+        # Run the model
+        infer_data = direct_method_inference(fname, inputs, prior_dict=self._model.prior_conf, idcs_highTemp_ions=idcs_highTemp_ions,
+                                            emiss_interp=self._model.emiss_grids.interpl, eq_tt=self._model.eq_tt,
+                                            Tlow_diag=lowTemp_check, Thigh_diag=highTemp_check)
 
-            # Run the model
-            infer_data = direct_method_inference(fname, inputs,
-                                    prior_dict=self._model.prior_conf, idcs_highTemp_ions=idcs_highTemp_ions,
-                                    emiss_interp=self._model.emiss_grids.interpl, eq_tt=self._model.eq_tt,
-                                    fit_Tlow=lowTemp_check, fit_Thigh=highTemp_check)
+        # Save the output data
+        output_db = self.output_path / f'{self.label_fit}_infer_db.nc'
+        print(f'-- done, saving the results at: {output_db}')
+        self.package_results(output_db, infer_data, inputs, self._model.prior_conf, true_values=true_values)
 
-            # Save the output data
-            output_db = self.output_path / f'{self.label_fit}_infer_db.nc'
-            print(f'-- done, saving the results at: {output_db}')
-            self.package_results(output_db, infer_data, inputs, self._model.prior_conf, true_values=true_values)
 
-        else:
-            msg = (f'\n- The observation does not have temperature diagnostics:'
-                   f'\n-- Low temperature diagnostics: {self._model.temp_low_diag}',
-                   f'\n-- High temperature diagnostics: {self._model.temp_high_diag}')
-            print(msg)
+        # # Confirm all data is available
+        # if lowTemp_check or highTemp_check:
+        # else:
+        #     msg = (f'\n- The observation does not have temperature diagnostics:'
+        #            f'\n-- Low temperature diagnostics: {self._model.temp_low_diag}',
+        #            f'\n-- High temperature diagnostics: {self._model.temp_high_diag}')
+        #     print(msg)
 
         return
 

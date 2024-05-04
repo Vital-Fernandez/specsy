@@ -115,7 +115,8 @@ class Innate:
         self.x_range, self.y_range = None, None
 
         # Initiate data and interpolators # TODO Better check
-        self.grid = load_grids(grid) if Path(grid).is_file() else grid
+        grid_path = Path(grid)
+        self.grid = load_grids(grid_path) if grid_path.is_file() else grid
 
         if interpolators is not None:
 

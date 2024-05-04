@@ -1,12 +1,11 @@
 [project]
 name = "specsy"
-version = "0.2.2"
+version = "0.2.3"
 readme = "README.rst"
 requires-python = ">=3.8"
 license = {file = "COPYING"}
 authors = [{name = "Vital Fernández", email = "vgf@umich.edu"}]
 description = "Model fitting package for the chemical analysis of astronomical spectra"
-
 dependencies = ["arviz~=0.18",
                 "astropy~=6.0",
                 "corner~=2.2",
