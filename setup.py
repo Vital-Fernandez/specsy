@@ -36,7 +36,7 @@ setup(name=_setup_cfg['metadata']['name'],
       package_data={'': ['config.toml', 'inference/*', 'innate/*', 'models/*', 'operations/*', 'resources/*', 'workflow/*']},
       include_package_data=True,
       install_requires=["arviz", "astropy", "h5netcdf", "jax", "jaxlib", "lime-stable", "lmfit", "matplotlib", "numpy",
-                        "pandas", "pymc", "PyNeb", "pytensor", "scipy", "toml", "xarray"],
+                        "pandas", "pymc", "pytensor", "scipy", "toml", "xarray"],
       )
 
 

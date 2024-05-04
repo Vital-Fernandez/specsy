@@ -1,6 +1,6 @@
 [project]
 name = "specsy"
-version = "0.2.5"
+version = "0.2.6"
 readme = "README.rst"
 requires-python = ">=3.8"
 license = {file = "COPYING"}
@@ -18,7 +18,7 @@ dependencies = ["arviz~=0.18",
                 "numpy~=1.26",
                 "pandas~=2.2.2",
                 "pymc~=5.13",
-                "PyNeb~=1.1",
+                #"PyNeb~=1.1",
                 "pytensor~=2.20",
                 "scipy~=1.13",
                 "six~=1.16.0",
