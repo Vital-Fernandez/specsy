@@ -31,13 +31,15 @@ def load_frame(file_address, page: str ='LINELOG', sample_levels: list =['id', '
     # Return
     log = lime.load_frame(file_address, page, sample_levels)
 
+    extra_column = 'line_extract' if norm_line is not None else 'line_flux'
+
     # Create new column for the lines flux with the requested type (None for user to introduce "line_flux")
     if flux_type is not None:
-        lime.tools.extract_fluxes(log, flux_type=flux_type, column_name='line_extract')
+        lime.tools.extract_fluxes(log, flux_type=flux_type, column_name=extra_column)
 
     # Check for requested lines and their normalization
     if norm_line is not None:
-        lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column='line_extract', column_name='line_flux')
+        lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column=extra_column, column_name='line_flux')
 
     return log
 

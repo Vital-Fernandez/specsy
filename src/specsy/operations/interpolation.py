@@ -2,30 +2,30 @@ import itertools
 import numpy as np
 import pytensor.tensor as tt
 from ..io import load_HII_CHI_MISTRY_grid, label_decomposition
-from ..models.emissivity import IonEmissivity
-
-
-def emissivity_grid_calc(lines_array, comp_dict, temp_grid_points=(9000, 20000, 251), den_grid_points=(1, 600, 101)):
-
-    print(f'- Computing emissivity grids for {len(lines_array)} lines\n')
-
-    # Compute the atomic data grids
-    objIons = IonEmissivity(tempGrid=temp_grid_points, denGrid=den_grid_points)
-
-    ion_array, wave_array, latex_array = label_decomposition(lines_array, fit_conf=comp_dict)
-
-    # Define the dictionary with the pyneb ion objects
-    ionDict = objIons.get_ions_dict(ion_array)
-
-    # Compute the emissivity surfaces for the observed emission lines
-    objIons.computeEmissivityGrids(lines_array, ionDict, combined_dict=comp_dict)
-
-    # Compile exoplanet interpolator functions so they can be used wit numpy
-    emisGridInterpFun = gridInterpolatorFunction(objIons.emisGridDict, objIons.tempRange, objIons.denRange)
-
-    print(f'-- completed')
-
-    return emisGridInterpFun
+# from ..models.emissivity import IonEmissivity
+#
+#
+# def emissivity_grid_calc(lines_array, comp_dict, temp_grid_points=(9000, 20000, 251), den_grid_points=(1, 600, 101)):
+#
+#     print(f'- Computing emissivity grids for {len(lines_array)} lines\n')
+#
+#     # Compute the atomic data grids
+#     objIons = IonEmissivity(tempGrid=temp_grid_points, denGrid=den_grid_points)
+#
+#     ion_array, wave_array, latex_array = label_decomposition(lines_array, fit_conf=comp_dict)
+#
+#     # Define the dictionary with the pyneb ion objects
+#     ionDict = objIons.get_ions_dict(ion_array)
+#
+#     # Compute the emissivity surfaces for the observed emission lines
+#     objIons.computeEmissivityGrids(lines_array, ionDict, combined_dict=comp_dict)
+#
+#     # Compile exoplanet interpolator functions so they can be used wit numpy
+#     emisGridInterpFun = gridInterpolatorFunction(objIons.emisGridDict, objIons.tempRange, objIons.denRange)
+#
+#     print(f'-- completed')
+#
+#     return emisGridInterpFun
 
 
 def gridInterpolatorFunction(interpolatorDict, x_range, y_range, z_range=None, interp_type='point'):

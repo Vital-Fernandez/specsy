@@ -245,176 +245,176 @@ class EmissivitySurfaceFitter:
 
 
 # TODO undo class and move methods to data reading
-class IonEmissivity(EmissivitySurfaceFitter):
-
-    def __init__(self, atomic_references=None, tempGrid=(9000, 20000, 251), denGrid=(1, 600, 101)):
-
-        self.emisGridDict = {}
-        self.ftau_coeffs = None
-        self.ftau_interp = {}
-        self.tempRange = None
-        self.denRange = None
-        self.tempGridFlatten = None
-        self.denGridFlatten = None
-        self.normLine = 'H1_4861A'
-
-        EmissivitySurfaceFitter.__init__(self)
-
-        # Defining temperature and density grids
-        # FIXME There is a weird error in linspace, check if int(denGrid[0]) can be removed
-        if (tempGrid is not None) and (denGrid is not None):
-            self.tempRange = np.linspace(int(tempGrid[0]), int(tempGrid[1]), int(tempGrid[2]))
-            self.denRange = np.linspace(int(denGrid[0]), int(denGrid[1]), int(denGrid[2]))
-            X, Y = np.meshgrid(self.tempRange, self.denRange)
-            self.tempGridFlatten, self.denGridFlatten = X.flatten(), Y.flatten()
-
-        # Load user atomic data references
-        # TODO upgrade the right method? check for pyneb abundances
-        if atomic_references is not None:
-            pn.atomicData.defaultDict = atomic_references
-            pn.atomicData.resetDataFileDict()
-
-    def get_ions_dict(self, ions_list, recomb_atoms=('H1', 'He1', 'He2'), atomic_references=pn.atomicData.defaultDict):
-
-        # Check if the atomic dataset is the default one
-        if atomic_references == pn.atomicData.defaultDict:
-            pn.atomicData.resetDataFileDict()
-            pn.atomicData.removeFitsPath()
-        else:
-            pn.atomicData.includeFitsPath()
-            pn.atomicData.setDataFileDict(atomic_references)
-
-        # Generate the dictionary with pyneb ions
-        ionDict = pn.getAtomDict(ions_list)
-
-        # Remove r extension from recom 'H1', 'He1', 'He2' emissions
-        for ion_r in recomb_atoms:
-            recomb_key = f'{ion_r}r'
-            if recomb_key in ionDict:
-                ionDict[ion_r] = ionDict.pop(recomb_key)
-
-        return ionDict
-
-    def load_emis_coeffs(self, line_list, objParams, verbose=True):
-
-        for line in line_list:
-            if line in objParams:
-                self.emisCoeffs[line] = objParams[line]
-            else:
-                if verbose:
-                    print(f'-- Warning: No emissivity coefficients available for line {line}')
-        return
-
-    def computeEmissivityGrids(self, line_labels, ionDict, grids_folder=None, load_grids=False, normLine='H1_4861A', combined_dict={}):
-
-        ion_array, wave_array, latex_array = label_decomposition(line_labels, fit_conf=combined_dict)
-
-        # Generate a grid with the default reference line
-        if normLine == 'H1_4861A':
-            self.normLine = 'H1_4861A'
-            wave_line = 4861.0
-            Hbeta_emis_grid = ionDict['H1'].getEmissivity(self.tempRange, self.denRange, wave=wave_line)
-
-        self.emisGridDict = {}
-        for i, line_label in enumerate(line_labels):
-
-            # Line emissivity references
-            if (grids_folder is not None) and load_grids:
-                emis_grid_i = np.load(grids_folder, line_label)
-
-            # Otherwise generate it (and save it)
-            else:
-                # Single line:
-                if ('_m' not in line_label) and ('_b' not in line_label):
-                    emis_grid_i = ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=np.round(wave_array[i]))
-
-                # Blended line
-                else:
-                    emis_grid_i = np.zeros(Hbeta_emis_grid.shape)
-                    for component in combined_dict[line_label].split('+'):
-                        ion, wave, latex_label = label_decomposition(component, scalar_output=True)
-                        emis_grid_i += ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=np.round(wave))
-
-                if grids_folder is not None:
-                    np.save(grids_folder, emis_grid_i)
-
-            # Save grid dict
-            self.emisGridDict[line_label] = np.log10(emis_grid_i/Hbeta_emis_grid)
-
-        return
-
-    # def compute_ftau_grids(self, ftau_file_path):
-    #
-    #     """
-    #     Correction grids for fluorescence excitation in HeI transitions
-    #
-    #     :math:`a^2`
-    #
-    #     :math:`\\alpha > \\beta`
-    #
-    #
-    #     :param ftau_file_path:
-    #     :return:
-    #     """
-    #
-    #     # TODO add default path
-    #     # Import Optical depth function coefficients
-    #     self.ftau_coeffs = import_optical_depth_coeff_table(ftau_file_path)
-    #
-    #     den_matrix, temp_matrix = np.meshgrid(self.denRange, self.tempRange)
-    #
-    #     # ftau grid
-    #     for lineLabel in self.ftau_coeffs:
-    #         if self.ftau_coeffs[lineLabel].sum() != 0.0:
-    #
-    #             # TODO check equation format for log scale
-    #             a, b, c, d = self.ftau_coeffs[lineLabel]
-    #             ftau_grid = (a + (b + c * den_matrix + d * np.power(temp_matrix, 2)) * temp_matrix / 10000.0)
-    #
-    #             ftau_interpolator = RegularGridInterpolator([self.tempRange, self.denRange], ftau_grid[:, :, None], nout=1)
-    #
-    #             self.ftau_interp[lineLabel] = ftau_interpolator.evaluate
-    #
-    #     return
-
-    def computeEmissivityEquations(self, linesDF, ionDict, grids_folder=None, load_grids=False, norm_Ion='H1r',
-                              norm_pynebCode=4861, linesDb=None):
-
-        labels_list = linesDF.index.values
-        ions_list = linesDF.ion.values
-        pynebCode_list = linesDF.pynebCode.values
-        blended_list = linesDF.blended.values
-
-        # Generate a grid with the default reference line
-        Hbeta_emis_grid = ionDict[norm_Ion].getEmissivity(self.tempGridFlatten, self.denGridFlatten, wave=norm_pynebCode,
-                                                          product=False)
-
-        for i in range(len(labels_list)):
-
-            # Line emissivity references
-            line_label = labels_list[i]
-
-            if (grids_folder is not None) and load_grids:
-                emis_grid_i = np.load(grids_folder, line_label)
-
-            # Otherwise generate it (and save it)
-            else:
-
-                # Check if it is a blended line:
-                if ('_m' not in line_label) and ('_b' not in line_label):
-                    # TODO I should change wave by label
-                    emis_grid_i = ionDict[ions_list[i]].getEmissivity(self.tempGridFlatten, self.denGridFlatten,
-                                                                           wave=float(pynebCode_list[i]), product=False)
-                else:
-                    emis_grid_i = np.zeros(self.tempGridFlatten.size)
-                    for component in blended_list[i].split(','):
-                        component_wave = float(linesDb.loc[component].pynebCode)
-                        emis_grid_i += ionDict[ions_list[i]].getEmissivity(self.tempGridFlatten, self.denGridFlatten,
-                                                                                wave=component_wave, product=False)
-                if (grids_folder is not None):
-                    np.save(grids_folder, emis_grid_i)
-
-            # Save along the number of points
-            self.emisGridDict[line_label] = np.log10(emis_grid_i / Hbeta_emis_grid)
-
-        return
+# class IonEmissivity(EmissivitySurfaceFitter):
+#
+#     def __init__(self, atomic_references=None, tempGrid=(9000, 20000, 251), denGrid=(1, 600, 101)):
+#
+#         self.emisGridDict = {}
+#         self.ftau_coeffs = None
+#         self.ftau_interp = {}
+#         self.tempRange = None
+#         self.denRange = None
+#         self.tempGridFlatten = None
+#         self.denGridFlatten = None
+#         self.normLine = 'H1_4861A'
+#
+#         EmissivitySurfaceFitter.__init__(self)
+#
+#         # Defining temperature and density grids
+#         # FIXME There is a weird error in linspace, check if int(denGrid[0]) can be removed
+#         if (tempGrid is not None) and (denGrid is not None):
+#             self.tempRange = np.linspace(int(tempGrid[0]), int(tempGrid[1]), int(tempGrid[2]))
+#             self.denRange = np.linspace(int(denGrid[0]), int(denGrid[1]), int(denGrid[2]))
+#             X, Y = np.meshgrid(self.tempRange, self.denRange)
+#             self.tempGridFlatten, self.denGridFlatten = X.flatten(), Y.flatten()
+#
+#         # Load user atomic data references
+#         # TODO upgrade the right method? check for pyneb abundances
+#         if atomic_references is not None:
+#             pn.atomicData.defaultDict = atomic_references
+#             pn.atomicData.resetDataFileDict()
+#
+#     def get_ions_dict(self, ions_list, recomb_atoms=('H1', 'He1', 'He2'), atomic_references=pn.atomicData.defaultDict):
+#
+#         # Check if the atomic dataset is the default one
+#         if atomic_references == pn.atomicData.defaultDict:
+#             pn.atomicData.resetDataFileDict()
+#             pn.atomicData.removeFitsPath()
+#         else:
+#             pn.atomicData.includeFitsPath()
+#             pn.atomicData.setDataFileDict(atomic_references)
+#
+#         # Generate the dictionary with pyneb ions
+#         ionDict = pn.getAtomDict(ions_list)
+#
+#         # Remove r extension from recom 'H1', 'He1', 'He2' emissions
+#         for ion_r in recomb_atoms:
+#             recomb_key = f'{ion_r}r'
+#             if recomb_key in ionDict:
+#                 ionDict[ion_r] = ionDict.pop(recomb_key)
+#
+#         return ionDict
+#
+#     def load_emis_coeffs(self, line_list, objParams, verbose=True):
+#
+#         for line in line_list:
+#             if line in objParams:
+#                 self.emisCoeffs[line] = objParams[line]
+#             else:
+#                 if verbose:
+#                     print(f'-- Warning: No emissivity coefficients available for line {line}')
+#         return
+#
+#     def computeEmissivityGrids(self, line_labels, ionDict, grids_folder=None, load_grids=False, normLine='H1_4861A', combined_dict={}):
+#
+#         ion_array, wave_array, latex_array = label_decomposition(line_labels, fit_conf=combined_dict)
+#
+#         # Generate a grid with the default reference line
+#         if normLine == 'H1_4861A':
+#             self.normLine = 'H1_4861A'
+#             wave_line = 4861.0
+#             Hbeta_emis_grid = ionDict['H1'].getEmissivity(self.tempRange, self.denRange, wave=wave_line)
+#
+#         self.emisGridDict = {}
+#         for i, line_label in enumerate(line_labels):
+#
+#             # Line emissivity references
+#             if (grids_folder is not None) and load_grids:
+#                 emis_grid_i = np.load(grids_folder, line_label)
+#
+#             # Otherwise generate it (and save it)
+#             else:
+#                 # Single line:
+#                 if ('_m' not in line_label) and ('_b' not in line_label):
+#                     emis_grid_i = ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=np.round(wave_array[i]))
+#
+#                 # Blended line
+#                 else:
+#                     emis_grid_i = np.zeros(Hbeta_emis_grid.shape)
+#                     for component in combined_dict[line_label].split('+'):
+#                         ion, wave, latex_label = label_decomposition(component, scalar_output=True)
+#                         emis_grid_i += ionDict[ion_array[i]].getEmissivity(self.tempRange, self.denRange, wave=np.round(wave))
+#
+#                 if grids_folder is not None:
+#                     np.save(grids_folder, emis_grid_i)
+#
+#             # Save grid dict
+#             self.emisGridDict[line_label] = np.log10(emis_grid_i/Hbeta_emis_grid)
+#
+#         return
+#
+#     # def compute_ftau_grids(self, ftau_file_path):
+#     #
+#     #     """
+#     #     Correction grids for fluorescence excitation in HeI transitions
+#     #
+#     #     :math:`a^2`
+#     #
+#     #     :math:`\\alpha > \\beta`
+#     #
+#     #
+#     #     :param ftau_file_path:
+#     #     :return:
+#     #     """
+#     #
+#     #     # TODO add default path
+#     #     # Import Optical depth function coefficients
+#     #     self.ftau_coeffs = import_optical_depth_coeff_table(ftau_file_path)
+#     #
+#     #     den_matrix, temp_matrix = np.meshgrid(self.denRange, self.tempRange)
+#     #
+#     #     # ftau grid
+#     #     for lineLabel in self.ftau_coeffs:
+#     #         if self.ftau_coeffs[lineLabel].sum() != 0.0:
+#     #
+#     #             # TODO check equation format for log scale
+#     #             a, b, c, d = self.ftau_coeffs[lineLabel]
+#     #             ftau_grid = (a + (b + c * den_matrix + d * np.power(temp_matrix, 2)) * temp_matrix / 10000.0)
+#     #
+#     #             ftau_interpolator = RegularGridInterpolator([self.tempRange, self.denRange], ftau_grid[:, :, None], nout=1)
+#     #
+#     #             self.ftau_interp[lineLabel] = ftau_interpolator.evaluate
+#     #
+#     #     return
+#
+#     def computeEmissivityEquations(self, linesDF, ionDict, grids_folder=None, load_grids=False, norm_Ion='H1r',
+#                               norm_pynebCode=4861, linesDb=None):
+#
+#         labels_list = linesDF.index.values
+#         ions_list = linesDF.ion.values
+#         pynebCode_list = linesDF.pynebCode.values
+#         blended_list = linesDF.blended.values
+#
+#         # Generate a grid with the default reference line
+#         Hbeta_emis_grid = ionDict[norm_Ion].getEmissivity(self.tempGridFlatten, self.denGridFlatten, wave=norm_pynebCode,
+#                                                           product=False)
+#
+#         for i in range(len(labels_list)):
+#
+#             # Line emissivity references
+#             line_label = labels_list[i]
+#
+#             if (grids_folder is not None) and load_grids:
+#                 emis_grid_i = np.load(grids_folder, line_label)
+#
+#             # Otherwise generate it (and save it)
+#             else:
+#
+#                 # Check if it is a blended line:
+#                 if ('_m' not in line_label) and ('_b' not in line_label):
+#                     # TODO I should change wave by label
+#                     emis_grid_i = ionDict[ions_list[i]].getEmissivity(self.tempGridFlatten, self.denGridFlatten,
+#                                                                            wave=float(pynebCode_list[i]), product=False)
+#                 else:
+#                     emis_grid_i = np.zeros(self.tempGridFlatten.size)
+#                     for component in blended_list[i].split(','):
+#                         component_wave = float(linesDb.loc[component].pynebCode)
+#                         emis_grid_i += ionDict[ions_list[i]].getEmissivity(self.tempGridFlatten, self.denGridFlatten,
+#                                                                                 wave=component_wave, product=False)
+#                 if (grids_folder is not None):
+#                     np.save(grids_folder, emis_grid_i)
+#
+#             # Save along the number of points
+#             self.emisGridDict[line_label] = np.log10(emis_grid_i / Hbeta_emis_grid)
+#
+#         return

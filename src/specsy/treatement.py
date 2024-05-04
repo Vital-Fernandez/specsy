@@ -7,7 +7,7 @@ from pathlib import Path
 from pandas import DataFrame
 
 from .io import label_decomposition, parseConfDict, fits_db, check_file_dataframe, check_fit_conf, SpecSyError
-from .operations.interpolation import GridWrapper, emissivity_grid_calc
+from .operations.interpolation import GridWrapper
 from .inference.emission import PhotoIonizationModels
 from .models.fluxes_line import EmissionFluxModel
 from .models.extinction import flambda_calc
