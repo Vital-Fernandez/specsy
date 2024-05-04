@@ -1,6 +1,6 @@
 [metadata]
 name = 'specsy'
-version = '0.2.3'
+version = '0.2.4'
 
 [direct_method_cfg]
 temp_zones.high = ["He1", "He2", "O3", "Ar4", "Ne3", "Cl4", "C3"]
