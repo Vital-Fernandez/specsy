@@ -4,6 +4,7 @@ from pathlib import Path
 from warnings import catch_warnings, simplefilter
 from arviz import to_netcdf, from_netcdf
 from xarray import Dataset
+from os import PathLike
 from .interpol_pytensor import interpolation_selection
 import h5netcdf
 
@@ -11,9 +12,12 @@ import h5netcdf
 def load_inference_data(fname):
 
     # Load the data
-    with catch_warnings():
-        simplefilter("ignore", UserWarning)
-        inference_data = from_netcdf(fname)
+    if isinstance(fname, (str, PathLike, bytes)):
+        with catch_warnings():
+            simplefilter("ignore", UserWarning)
+            inference_data = from_netcdf(fname)
+    else:
+        inference_data = fname
 
     return inference_data
 

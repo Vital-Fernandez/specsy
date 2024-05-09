@@ -153,7 +153,9 @@ def plot_traces(fname, output_address=None, params_list=None, true_values=None, 
     with (rc_context(plot_cfg)):
 
         # Plot format
-        fig = plt.figure()
+        # Generate the figure if not provided
+        if in_fig is None:
+            in_fig = plt.figure()
         gs = gridspec.GridSpec(n_traces * 2, 4)
         gs.update(wspace=0.2, hspace=1.8)
 
@@ -169,11 +171,13 @@ def plot_traces(fname, output_address=None, params_list=None, true_values=None, 
                 trace_array = infer_db.posterior[param].values
                 trace_array = trace_array.reshape(-1)
 
+                print(trace_array)
+
                 mean_value = np.mean(trace_array)
                 std_dev = np.std(trace_array)
 
-                axTrace = fig.add_subplot(gs[2 * i:2 * (1 + i), :3])
-                axPoterior = fig.add_subplot(gs[2 * i:2 * (1 + i), 3])
+                axTrace = in_fig.add_subplot(gs[2 * i:2 * (1 + i), :3])
+                axPoterior = in_fig.add_subplot(gs[2 * i:2 * (1 + i), 3])
 
                 param_latex = _setup_cfg['latex'][param]
                 label_measurement = parameter_notation(param, mean_value, std_dev)
@@ -287,7 +291,11 @@ def plot_flux_grid(fname, output_address=None, line_list=None, obs_values=None, 
         color_dict = dict(zip(input_ions, np.arange(input_ions.size)))
 
         # self.FigConf(plotSize=size_dict, Figtype='Grid', n_columns=n_columns, n_rows=n_rows)
-        fig, axes = plt.subplots(n_rows, n_cols)
+        if in_fig is None:
+            in_fig = plt.figure()
+
+        axes = in_fig.subplots(n_rows, n_cols)
+        # axes = plt.subplots(n_rows, n_cols)
         axes = axes.ravel()
 
         # Plot individual traces
@@ -321,7 +329,7 @@ def plot_flux_grid(fname, output_address=None, line_list=None, obs_values=None, 
                 axes[i].set_title(latexLabel_array[i])
 
             else:
-                fig.delaxes(axes[i])
+                in_fig.delaxes(axes[i])
 
         # Show or save the image
         in_fig = save_close_fig_swicth(output_address, 'tight', in_fig, maximize, display_check)
@@ -367,16 +375,16 @@ def plot_corner_matrix(fname, output_address=None, params_list=None, true_values
     true_array = None if true_array is None else np.array(true_array)
 
     # Set the plot format where the user's overwrites the default
-    plot_cfg = theme.fig_defaults()
+    plot_cfg = theme.fig_defaults(fig_cfg)
     ax_cfg = theme.ax_defaults()
 
     # Initialize the figure
     with (rc_context(plot_cfg)):
 
         # Generate the plot
-        fig = corner.corner(traces_list, fontsize=30, labels=labels_list, quantiles=[0.16, 0.5, 0.84],
+        corner.corner(traces_list, fontsize=30, labels=labels_list, quantiles=[0.16, 0.5, 0.84],
                             show_titles=True, title_args={"fontsize": 200}, truths=true_array,
-                            truth_color=theme.colors['fg'], title_fmt='0.3f')
+                            truth_color=theme.colors['fg'], title_fmt='0.3f', fig=in_fig)
 
         # Show or save the image
         in_fig = save_close_fig_swicth(output_address, 'tight', in_fig, maximize, display_check)

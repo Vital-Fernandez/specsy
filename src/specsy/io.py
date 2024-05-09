@@ -2,6 +2,9 @@ import os
 import numpy as np
 import configparser
 from pathlib import Path
+
+import pandas as pd
+
 from lime.transitions import label_decomposition
 import lime
 from lime.io import load_cfg, save_cfg, save_frame, check_file_dataframe, check_fit_conf
@@ -29,7 +32,10 @@ def load_frame(file_address, page: str ='LINELOG', sample_levels: list =['id', '
                norm_line=None):
 
     # Return
-    log = lime.load_frame(file_address, page, sample_levels)
+    if isinstance(file_address, pd.DataFrame):
+        log = file_address.copy()
+    else:
+        log = lime.load_frame(file_address, page, sample_levels)
 
     extra_column = 'line_extract' if norm_line is not None else 'line_flux'
 
