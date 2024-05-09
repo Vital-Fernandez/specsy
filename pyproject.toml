@@ -1,6 +1,6 @@
 [project]
 name = "specsy"
-version = "0.2.7"
+version = "0.2.8"
 readme = "README.rst"
 requires-python = ">=3.8"
 license = {file = "COPYING"}
