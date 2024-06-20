@@ -174,3 +174,35 @@ def direct_method_inference(fname, inputs, prior_dict, idcs_highTemp_ions, emiss
 
     return inference_data
 
+
+def chemical_model(transition_list, obs_mean_array, obs_std_array, element_array, temperature_array, function_dict):
+
+    unique_elements = np.unique(element_array)
+    unique_temperatures = np.unique(temperature_array)
+
+    coords = {'element': unique_elements, 'region': unique_temperatures}
+    with pm.Model(coords=coords) as model:
+
+        # Model data
+        flux_obs = pm.Data('observed_data', obs_mean_array)
+        flux_err = pm.Data('observed_uncertainty', obs_std_array)
+
+        # Priors definition
+        abundance_priors = pm.Normal('abundance', 5, 5, dims='element')
+        temperature_priors = pm.Normal('temperature', 15000, 5000,  dims='region')
+        density = pm.HalfCauchy('density', 2.0, 0.0, shape=1) + 200
+        cHbeta = pm.HalfCauchy('density', 2.0, 0.0, shape=1)
+
+        # Loop through the input transitions and compute the likelihoods:
+        for i, transition in enumerate(transition_list):
+
+            # Get the transition specific parameters
+            transition_temperature = temperature_priors[element_array[i]]
+            transition_abundance = abundance_priors[element_array[i]]
+
+            transition_emission = function_dict[transition](transition_temperature, density, cHbeta)
+            flux_theo = pm.Deterministic(transition, transition_abundance * transition_emission)
+
+            likelihood_i = pm.Normal(transition, mu=flux_theo, sigma=flux_obs[i], observed=flux_err[i])
+
+    return model
