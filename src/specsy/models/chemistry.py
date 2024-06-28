@@ -22,7 +22,7 @@ except ImportError:
     pyneb_check = False
 
 f_lambda_dict = {'Ne5_3426A': 0.39007327642328193, 'H1_3704A': 0.3140805693603108, 'O2_3726A_m': 0.3067768458982876, 'O2_3726A': 0.3067768458982876, 'O2_3729A': 0.3058662813859485, 'H1_3750A': 0.2989658287267065, 'H1_3771A': 0.2923988864345617, 'H1_3798A': 0.28376476642417625, 'H1_3835A': 0.27209526905153303, 'Ne3_3869A': 0.2618967220857926, 'H1_3889A': 0.2557809891273626, 'H1_3970A': 0.23198534354014377, 'He1_4026A': 0.21606552409784063, 'S2_4069A': 0.2043275716588584, 'H1_4102A': 0.19532246622634286, 'H1_4340A': 0.1345184866324025, 'O3_4363A': 0.12907397984854385, 'He1_4471A': 0.10008316812687346, 'Fe3_4658A': 0.05008559375773025, 'He2_4685A': 0.04306145401678374, 'Ar4_4711A': 0.03656608779554027, 'Ar4_4740A': 0.029353696058204592, 'H1_4861A': 0.0, 'He1_4922A': -0.01413318511741013, 'O3_4959A': -0.022588313009073047, 'O3_5007A': -0.03336167870361706, 'N2_5755A': -0.18418774041199926, 'He1_5876A': -0.20680077428006316, 'O1_6300A': -0.27936359987068493, 'S3_6312A': -0.28123411434673595, 'N2_6548A': -0.3173469917409416,
-                 'H1_6563A': -0.31952058255138915, 'N2_6584A': -0.32254097821555716, 'He1_6678A': -0.3361647881852353, 'S2_6716A': -0.3415641010661673, 'S2_6731A': -0.34357533413787533, 'He1_7065A': -0.3880517953849959, 'Ar3_7136A': -0.3969061757103082, 'O2_7319A_m': -0.41908454023400266, 'O2_7319A': -0.41908454023400266, 'O2_7330A': -0.42035048955048104, 'Ar3_7751A': -0.4672699048137039, 'H1_8392A': -0.5296236462812575, 'H1_8413A': -0.5314977585865324, 'H1_8438A': -0.5336928162672543, 'H1_8467A': -0.5362865949831361, 'H1_8502A': -0.5393816101427606, 'H1_8545A': -0.543116195197769, 'H1_8598A': -0.5476792555250717, 'H1_8665A': -0.5533353188659278, 'H1_8750A': -0.5604637553180236, 'H1_8863A': -0.5696232832294517, 'H1_9015A': -0.5816662195724203, 'S3_9068A': -0.5858209361879336, 'H1_9229A': -0.5979429077869078, 'S3_9530A': -0.6196286670577644, 'H1_9546A': -0.6206981718255229}
+                 'H1_6563A': -0.31952058255138915, 'N2_6583A': -0.32254097821555716, 'He1_6678A': -0.3361647881852353, 'S2_6716A': -0.3415641010661673, 'S2_6731A': -0.34357533413787533, 'He1_7065A': -0.3880517953849959, 'Ar3_7136A': -0.3969061757103082, 'O2_7319A_m': -0.41908454023400266, 'O2_7319A': -0.41908454023400266, 'O2_7330A': -0.42035048955048104, 'Ar3_7751A': -0.4672699048137039, 'H1_8392A': -0.5296236462812575, 'H1_8413A': -0.5314977585865324, 'H1_8438A': -0.5336928162672543, 'H1_8467A': -0.5362865949831361, 'H1_8502A': -0.5393816101427606, 'H1_8545A': -0.543116195197769, 'H1_8598A': -0.5476792555250717, 'H1_8665A': -0.5533353188659278, 'H1_8750A': -0.5604637553180236, 'H1_8863A': -0.5696232832294517, 'H1_9015A': -0.5816662195724203, 'S3_9068A': -0.5858209361879336, 'H1_9229A': -0.5979429077869078, 'S3_9530A': -0.6196286670577644, 'H1_9546A': -0.6206981718255229}
 
 
 _logger = logging.getLogger('SpecSy')
@@ -268,7 +268,7 @@ class DmInputs:
 
         # Check that the lines are present in the dataframe
         if emissivity_grid is not None:
-            lines_cand = np.array(list(emissivity_grid.interpl.keys()))
+            lines_cand = np.array(list(emissivity_grid.keys()))
             idcs = np.isin(self.lines, lines_cand)
             if not np.all(idcs):
                 raise KeyError(f'- Missing lines from emissivity grid database: {self.lines[~idcs]}')
@@ -332,24 +332,18 @@ class DmFunctions():
         fname = self.output_path/f'{self.label_fit}_inference_data.nc'
         print(f'\n- Launching direct method inference: ')
 
+        # Recover the aproximation technique
+        approx_dict = self._model.emiss_grids.extract_approximation(technique='rgi')
+
         # Run the model
         infer_data = direct_method_inference(fname, inputs, prior_dict=self._model.prior_conf, idcs_highTemp_ions=idcs_highTemp_ions,
-                                            emiss_interp=self._model.emiss_grids.interpl, eq_tt=self._model.eq_tt,
+                                            emiss_interp=approx_dict, eq_tt=self._model.eq_tt,
                                             Tlow_diag=lowTemp_check, Thigh_diag=highTemp_check)
 
         # Save the output data
         output_db = self.output_path / f'{self.label_fit}_infer_db.nc'
-        print(f'-- done, saving the results at: {output_db}')
+        print(f'-- Complete: saving the results at: {output_db}')
         self.package_results(output_db, infer_data, inputs, self._model.prior_conf, true_values=true_values)
-
-
-        # # Confirm all data is available
-        # if lowTemp_check or highTemp_check:
-        # else:
-        #     msg = (f'\n- The observation does not have temperature diagnostics:'
-        #            f'\n-- Low temperature diagnostics: {self._model.temp_low_diag}',
-        #            f'\n-- High temperature diagnostics: {self._model.temp_high_diag}')
-        #     print(msg)
 
         return
 
@@ -428,7 +422,7 @@ class DirectMethod:
 
         # Compute flux equations as tensors
         self.tensor_library = tensor_model
-        line_array = np.array(list(self.emiss_grids.interpl.keys()))
+        line_array = np.array(list(self.emiss_grids.keys()))
         particle_array = lime.label_decomposition(line_array, params_list=['particle'])[0]
         self.eq_tt = EmissionFluxModel(line_array, particle_array)
 

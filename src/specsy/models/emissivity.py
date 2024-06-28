@@ -32,7 +32,39 @@ def get_pyneb_element(line):
     return atom
 
 
-def generate_emis_grid(lines_frame, norm_header, temp_range=(9000, 20000, 251), den_range=(1, 600, 101), log_scale=True):
+def generate_emis_grid(line, temp_range, den_range, lines_df=None, normalization_line=None, log_scale=True):
+
+    input_line = Line(line, band=lines_df)
+
+    # Loop through the components:
+    if not input_line.merged_check:
+        atom_pn = get_pyneb_element(input_line)
+        grid = atom_pn.getEmissivity(temp_range, den_range, wave=np.round(input_line.wavelength[0]))
+
+    else:
+        grid = np.zeros((temp_range.size, den_range.size))
+        for component in input_line.group_label.split('+'):
+            line_i = Line(component, band=lines_df)
+            atom_pn = get_pyneb_element(line_i)
+            grid += atom_pn.getEmissivity(temp_range, den_range, wave=np.round(line_i.wavelength[0]))
+
+    if normalization_line is not None:
+        norm_line = Line(normalization_line, band=lines_df)
+
+        # Save it for next time
+        atom_pn = get_pyneb_element(norm_line)
+        norm_emis = atom_pn.getEmissivity(temp_range, den_range, wave=np.round(norm_line.wavelength[0]))
+
+        # Normalization
+        grid = grid / norm_emis
+
+    if log_scale:
+        grid = np.log10(grid)
+
+    return grid
+
+
+def generate_emis_grid_orig(lines_frame, norm_header, temp_range=(9000, 20000, 251), den_range=(1, 600, 101), log_scale=True):
 
     # Container for the data
     grid_dict = {}

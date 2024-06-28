@@ -10,6 +10,7 @@ matplotlib~=3.8
 numpy~=1.26
 pandas~=2.2.2
 pymc~=5.13
+innate-stable==0.1.10
 #PyNeb~=1.1
 pytensor~=2.20
 scipy~=1.13

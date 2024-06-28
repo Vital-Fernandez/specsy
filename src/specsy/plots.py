@@ -171,8 +171,6 @@ def plot_traces(fname, output_address=None, params_list=None, true_values=None, 
                 trace_array = infer_db.posterior[param].values
                 trace_array = trace_array.reshape(-1)
 
-                print(trace_array)
-
                 mean_value = np.mean(trace_array)
                 std_dev = np.std(trace_array)
 
