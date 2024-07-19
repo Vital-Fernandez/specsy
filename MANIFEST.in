@@ -1,1 +1,2 @@
-specsy/resources
+include src/specsy/*.toml
+include src/specsy/resources

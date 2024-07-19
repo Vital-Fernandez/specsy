@@ -1,8 +1,12 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "specsy"
-version = "0.4.0"
+version = "0.5.1"
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {file = "COPYING"}
 authors = [{name = "Vital Fernández", email = "vgf@umich.edu"}]
 description = "Model fitting package for the chemical analysis of astronomical spectra"
@@ -11,17 +15,16 @@ dependencies = ["arviz~=0.18",
                 "corner~=2.2",
                 "h5netcdf~=1.3.0",
                 "jax~=0.4",
-                "jaxlib==0.4.26",
+                "jaxlib~=0.4",
                 "lime-stable~=1.0",
                 "lmfit~=1.3",
                 "matplotlib~=3.8",
-                "numpy~=1.26",
+                "numpy~=2.0",
                 "pandas~=2.2.2",
-                "pymc~=5.13",
+                "pymc~=5.1",
                 #"PyNeb~=1.1",
-                "pytensor~=2.20",
-                "scipy~=1.13",
-                "six~=1.16.0",
+                "scipy~=1.1",
+#                "six~=1.16.0",
                 "toml~=0.10",
                 "tomli >= 2.0.0 ; python_version < '3.11'",
                 "xarray~=2024.3.0"]
@@ -30,8 +33,20 @@ classifiers = ["License :: OSI Approved :: MIT License",
                "Programming Language :: Python :: 3",
                "Programming Language :: Python :: 3.8"]
 
+[project.optional-dependencies]
+tensors = ["pytensor~=2.20"]
+
+tests = ["pytest~=7.4",
+         "pytest-cov~=4.1",
+         "pytest-mpl~=0.16"]
+
+docs = ["nbsphinx~=0.9",
+        "ipympl~=0.9",
+        "sphinx-rtd-theme~=1.0"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 mpl-baseline-path = 'tests/baseline'
 mpl-results-path = 'tests/outputs'
 mpl-results-always = false
+addopts = "--cov-report term --cov-report xml"
