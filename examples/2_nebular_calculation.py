@@ -14,8 +14,6 @@ fig_conf = specsy.theme.fig_defaults()
 
 nebCalc = sy.NebularContinua()
 
-pip freeze > requirements2.txt
-
 # Physical parameters
 Te = 10000
 Halpha_flux = 1e-14

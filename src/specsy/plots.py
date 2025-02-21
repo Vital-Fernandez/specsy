@@ -1,5 +1,8 @@
 import numpy as np
-from lime.plots import save_close_fig_swicth, Themer as Themer_Lime, latex_science_float
+from lime.plotting.plots import save_close_fig_swicth
+from lime.plotting.format import  Themer as Themer_Lime, latex_science_float, theme
+
+# from lime.plots import save_close_fig_swicth, Themer as Themer_Lime, latex_science_float
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
 from .innate import load_inference_data
 from . import _setup_cfg
@@ -8,10 +11,10 @@ import corner
 
 class Themer(Themer_Lime):
 
-    def __init__(self, conf, style='default', library='matplotlib'):
+    def __init__(self, conf, style='default'):
 
         # Intialize the LiMe object
-        Themer_Lime.__init__(self, conf, style, library)
+        Themer_Lime.__init__(self, conf, style)
 
     def ax_defaults(self, fig_type=None, **kwargs):
 
@@ -25,7 +28,7 @@ class Themer(Themer_Lime):
         return ax_cfg
 
 # Specsy figure labels and color formatter
-theme = Themer(_setup_cfg)
+# theme = Themer(_setup_cfg)
 
 
 def extinction_gradient(cHbeta_array, n_array, x, y_array, idcs_valid=None, line_labels=None, ref_label='ref',

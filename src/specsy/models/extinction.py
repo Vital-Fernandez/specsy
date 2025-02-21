@@ -12,7 +12,7 @@ from pathlib import Path
 from lime.io import load_frame
 from uncertainties import unumpy, ufloat
 from lmfit.models import LinearModel
-
+from specsy.plots import extinction_gradient
 from ..tools import get_mixed_fluxes
 from ..io import SpecSyError, check_file_dataframe
 
@@ -21,7 +21,7 @@ _logger = logging.getLogger('SpecSy')
 
 # Function to compute and plot cHbeta
 def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, den=100.0, ref_line='auto',
-                    flux_entry='gauss', lines_ignore=None, show_plot=False, plot_address=None, plot_title=r'$c(H\beta)$ calculation',
+                    flux_entry='profile', lines_ignore=None, show_plot=False, plot_address=None, plot_title=r'$c(H\beta)$ calculation',
                     fig_cfg={}, ax_cfg={}):
 
     '''
@@ -100,7 +100,7 @@ def cHbeta_from_log(log, line_list='all', R_V=3.1, law='G03 LMC', temp=10000.0, 
     if not isinstance(log, DataFrame):
         log_path = Path(log)
         if log_path.is_file():
-            log = load_log(log_path)
+            log = load_frame(log_path)
         else:
             _logger.warning(f'- The file {log} could not be found')
             raise TypeError()
@@ -340,13 +340,10 @@ def reddening_correction(cHbeta, cHbeta_err, log, R_v=3.1, red_curve='G03 LMC', 
 
     # Compute the line intensities
     int_dist = flux_dist * np.power(10, cHbeta_dist * f_lambda_array)
-
-    log[f'{intensity_column}'] = int_dist.mean(axis=0)
-    log[f'{intensity_column}_err'] = int_dist.std(axis=0)
-
-    # rc = pn.RedCorr(R_V=R_v, law=red_curve, cHbeta=cHbeta)
-    # e_corr = rc.getCorr(log.wavelength.to_numpy(), rel_wave=norm_wavelength)
-    # log['pyneb_int'] = log['line_flux'] * e_corr
+    # log[f'{intensity_column}'] = int_dist.mean(axis=0)
+    # log[f'{intensity_column}_err'] = int_dist.std(axis=0)
+    log.insert(0, f'{intensity_column}', int_dist.mean(axis=0))
+    log.insert(1, f'{intensity_column}_err', int_dist.std(axis=0))
 
     return
 

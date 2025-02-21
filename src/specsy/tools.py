@@ -56,12 +56,13 @@ def flux_distribution(log, flux_type='auto', n_steps=1000):
     if flux_type == 'auto':
         obsFlux, obsErr = get_mixed_fluxes(log)
     else:
-        if flux_type in ['intg', 'gauss']:
-            obsFlux, obsErr = log[f'{flux_type}_flux'].values, log[f'{flux_type}_err'].values
-        else:
-            _logger.warning(f'The flux type {flux_type} is not recognized. Please use "intg" or "gauss" for integrated '
-                            f'or gaussian fluxes respectively')
-            raise ValueError
+        obsFlux, obsErr = log[f'{flux_type}'].values, log[f'{flux_type}_err'].values
+        # if flux_type in ['intg', 'profile']:
+        #     obsFlux, obsErr = log[f'{flux_type}_flux'].values, log[f'{flux_type}_err'].values
+        # else:
+        #     _logger.warning(f'The flux type {flux_type} is not recognized. Please use "intg" or "profile" for integrated '
+        #                     f'or gaussian fluxes respectively')
+        #     raise ValueError
 
     # Generate a normal distribution for every line
     output_dict = {}

@@ -168,7 +168,7 @@ def direct_method_inference(fname, inputs, prior_dict, idcs_highTemp_ions, emiss
         pm.Normal('Y_emision', mu=fluxTensor, sigma=inputFluxErr, observed=inputFlux)
 
         # Run the data
-        inference_data = pm.sample(1000, tune=2000, chains=8, cores=8, init='auto', progressbar=True)
+        inference_data = pm.sample(1000, tune=2000, chains=2, cores=2, init='auto', progressbar=True)
 
         #package_results(fname, inference_data, prior_dict, true_values)
 
