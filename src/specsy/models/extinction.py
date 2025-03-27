@@ -12,7 +12,7 @@ from pathlib import Path
 from lime.io import load_frame
 from uncertainties import unumpy, ufloat
 from lmfit.models import LinearModel
-from specsy.plots import extinction_gradient
+# from specsy.plots import extinction_gradient
 from ..tools import get_mixed_fluxes
 from ..io import SpecSyError, check_file_dataframe
 

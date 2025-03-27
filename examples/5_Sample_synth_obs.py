@@ -44,7 +44,6 @@ obj1_model.simulation_configuration(prior_conf_dict=model_cfg['priors_configurat
 
 # Declare simulation inference models
 obj1_model.inference_model(fname=output_db, true_values=model_cfg['true_values'])
-print('SE ACABO')
 
 
 

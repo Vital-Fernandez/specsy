@@ -4,27 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy"
-version = "0.5.1"
+version = "0.6.0"
 readme = "README.rst"
 requires-python = ">=3.10"
 license = {file = "COPYING"}
 authors = [{name = "Vital Fernández", email = "vgf@umich.edu"}]
 description = "Model fitting package for the chemical analysis of astronomical spectra"
-dependencies = ["arviz~=0.18",
-                "astropy~=6.0",
+dependencies = ["arviz~=0.21",
                 "corner~=2.2",
                 "h5netcdf~=1.3.0",
                 "jax~=0.4",
                 "jaxlib~=0.4",
-                "lime-stable~=1.0",
+                "lime-stable~=2.0.0.dev1",
                 "lmfit~=1.3",
-                "matplotlib~=3.8",
+                "matplotlib~=3.10",
                 "numpy~=2.0",
-                "pandas~=2.2.2",
+                "numpy~=2.2",
                 "pymc~=5.1",
-                #"PyNeb~=1.1",
-                "scipy~=1.1",
-#                "six~=1.16.0",
+                "scipy~=1.15",
                 "toml~=0.10",
                 "tomli >= 2.0.0 ; python_version < '3.11'",
                 "xarray~=2024.3.0"]
@@ -36,13 +33,13 @@ classifiers = ["License :: OSI Approved :: MIT License",
 [project.optional-dependencies]
 tensors = ["pytensor~=2.20"]
 
-tests = ["pytest~=7.4",
-         "pytest-cov~=4.1",
-         "pytest-mpl~=0.16"]
-
 docs = ["nbsphinx~=0.9",
         "ipympl~=0.9",
-        "sphinx-rtd-theme~=1.0"]
+        "sphinx-rtd-theme~=3.0"]
+
+tests = ["pytest~=8.3",
+         "pytest-cov~=6.0",
+         "pytest-mpl~=0.17"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

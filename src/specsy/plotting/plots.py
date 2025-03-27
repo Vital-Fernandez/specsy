@@ -1,34 +1,38 @@
 import numpy as np
 from lime.plotting.plots import save_close_fig_swicth
 from lime.plotting.format import  Themer as Themer_Lime, latex_science_float, theme
-
-# from lime.plots import save_close_fig_swicth, Themer as Themer_Lime, latex_science_float
+from pathlib import Path
+from lime.plotting.format import Themer
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
-from .innate import load_inference_data
-from . import _setup_cfg
+from specsy.innate import load_inference_data
+from specsy import _setup_cfg
 from lime.transitions import label_decomposition
+from lime import load_cfg
 import corner
 
-class Themer(Themer_Lime):
 
-    def __init__(self, conf, style='default'):
-
-        # Intialize the LiMe object
-        Themer_Lime.__init__(self, conf, style)
-
-    def ax_defaults(self, fig_type=None, **kwargs):
-
-        # Default wavelength and flux
-        if fig_type is None:
-            ax_cfg = {}
-
-        else:
-            ax_cfg = {}
-
-        return ax_cfg
-
-# Specsy figure labels and color formatter
-# theme = Themer(_setup_cfg)
+theme = Themer(load_cfg(Path(__file__).parent/'specsy_theme.toml', fit_cfg_suffix=None))
+#
+# class Themer(Themer_Lime):
+#
+#     def __init__(self, conf, style='default'):
+#
+#         # Intialize the LiMe object
+#         Themer_Lime.__init__(self, conf, style)
+#
+#     def ax_defaults(self, fig_type=None, **kwargs):
+#
+#         # Default wavelength and flux
+#         if fig_type is None:
+#             ax_cfg = {}
+#
+#         else:
+#             ax_cfg = {}
+#
+#         return ax_cfg
+#
+# # Specsy figure labels and color formatter
+# # theme = Themer(_setup_cfg)
 
 
 def extinction_gradient(cHbeta_array, n_array, x, y_array, idcs_valid=None, line_labels=None, ref_label='ref',
@@ -150,7 +154,7 @@ def plot_traces(fname, output_address=None, params_list=None, true_values=None, 
     size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
 
     plot_cfg = theme.fig_defaults(size_conf, fig_type='traces')
-    ax_cfg = theme.ax_defaults(fig_type='traces')
+    # ax_cfg = theme.ax_defaults(fig_type='traces')
 
     # Initialize the figure
     with (rc_context(plot_cfg)):
@@ -280,7 +284,7 @@ def plot_flux_grid(fname, output_address=None, line_list=None, obs_values=None, 
     size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
 
     plot_cfg = theme.fig_defaults(size_conf, fig_type='flux_grid')
-    ax_cfg = theme.ax_defaults(fig_type='traces')
+    # ax_cfg = theme.ax_defaults(fig_type='traces')
 
     # Initialize the figure
     with (rc_context(plot_cfg)):
@@ -377,7 +381,7 @@ def plot_corner_matrix(fname, output_address=None, params_list=None, true_values
 
     # Set the plot format where the user's overwrites the default
     plot_cfg = theme.fig_defaults(fig_cfg)
-    ax_cfg = theme.ax_defaults()
+    # ax_cfg = theme.ax_defaults()
 
     # Initialize the figure
     with (rc_context(plot_cfg)):
@@ -426,4 +430,4 @@ def plot_corner_matrix(fname, output_address=None, params_list=None, true_values
     # plt.savefig(plot_address, dpi=100, bbox_inches='tight')
     # plt.close(fig)
 
-    return
+    return in_fig

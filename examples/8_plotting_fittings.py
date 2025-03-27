@@ -1,10 +1,6 @@
-import arviz as az
-import numpy as np
 from pathlib import Path
-import xarray as xr
 import specsy
-from warnings import catch_warnings, simplefilter
-from specsy.plots import plot_traces, plot_flux_grid, plot_corner_matrix
+from specsy.plotting.plots import plot_corner_matrix
 
 specsy.theme.set_style('dark')
 
