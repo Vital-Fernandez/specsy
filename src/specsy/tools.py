@@ -18,7 +18,7 @@ def truncation_limits(mu, sigma, lower_limit, upper_limit):
 
 
 # Function to generate a truncated normal function
-def truncated_gaussian(diag_int, diag_err, n_steps, low_limit=-np.infty, up_limit=np.infty):
+def truncated_gaussian(diag_int, diag_err, n_steps, low_limit=-np.inf, up_limit=np.inf):
     a, b = truncation_limits(diag_int, diag_err, low_limit, up_limit)
     output_dist = truncnorm.rvs(a, b, loc=diag_int, scale=diag_err, size=n_steps)
     return output_dist
