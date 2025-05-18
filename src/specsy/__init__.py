@@ -28,5 +28,5 @@ from .tools import flux_distribution
 from .innate import Innate, load_inference_data, save_inference_data
 from .treatement import SpectraSynthesizer, ChemicalModel
 from .models import *
-from .plotting.plots import plot_traces, plot_flux_grid, plot_corner_matrix
+from .plotting.plots import plot_traces, plot_flux_grid, plot_corner_matrix, theme
 from .io import load_cfg, load_frame

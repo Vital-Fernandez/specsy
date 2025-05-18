@@ -65,6 +65,8 @@ title.text_color = "fg"
 xgrid.grid_line_color = "None"
 ygrid.grid_line_color = "None"
 
+legend.background_fill_alpha = 0.2
+
 [matplotlib.figure.traces] # Individual figure format
 "axes.labelsize" = 14
 "ytick.labelsize" = 8
@@ -94,6 +96,7 @@ mask_marker = '#FF0000'
 inspection_positive = '#FFFFFF'
 inspection_negative = '#ff796c' # 'xkcd:salmon'
 fade_fg = "#FFE5B4"
+regression = "#FFDB58" # Mustard
 
 [colors.dark] # Dark theme
 bg = "#2B2B2B"
@@ -114,3 +117,4 @@ mask_marker = '#FF0000'
 inspection_positive = "#2B2B2B"
 inspection_negative = '#840000'
 fade_fg = "#73879B"
+regression = "#FFDB58" # Mustard

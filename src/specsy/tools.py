@@ -2,6 +2,7 @@ import logging
 import numpy as np
 from scipy.stats import truncnorm, norm
 from lime.tools import extract_fluxes, normalize_fluxes
+from scipy.optimize import curve_fit
 
 # TODO some of these could go to lime
 
@@ -81,3 +82,18 @@ def flux_distribution(log, flux_type='auto', n_steps=1000):
             _logger.info(f'Invalid {line} flux ({obsFlux[i]}). It is excluded from the distribution dictionary')
 
     return output_dict
+
+
+def linear_model(x, m_cont, n_cont):
+    return m_cont * x + n_cont
+
+
+def linear_regression(x_values, y_values, y_error):
+
+    params, covariance = curve_fit(linear_model, xdata=x_values, ydata=y_values, sigma=y_error, absolute_sigma=True,
+                                   check_finite=False)
+
+    m, n = params
+    m_err, n_err = np.sqrt(np.diag(covariance))
+
+    return m, m_err, n, n_err

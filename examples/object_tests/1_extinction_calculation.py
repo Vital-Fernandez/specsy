@@ -9,7 +9,7 @@ log = sy.load_log(log_address)
 lime.normalize_fluxes(log, norm_list='H1_4862A')
 
 # Calculate the extinction coefficients
-cHbeta, cHbeta_err = sy.cHbeta_from_log(log, ref_line='H1_4862A', flux_entry='gauss', show_plot=True)
+cHbeta, cHbeta_err = sy.extinction_coeff_calc(log, norm_line='H1_4862A', flux_entry='gauss', plot_results=True)
 
 # Get line intensities
 sy.reddening_correction(cHbeta, cHbeta_err, log, norm_wavelength=4862, flux_column='line_flux')

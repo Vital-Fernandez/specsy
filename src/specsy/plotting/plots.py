@@ -1,100 +1,155 @@
 import numpy as np
+import pandas as pd
+
 from lime.plotting.plots import save_close_fig_swicth
 from lime.plotting.format import  Themer as Themer_Lime, latex_science_float, theme
 from pathlib import Path
 from lime.plotting.format import Themer
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
-from specsy.innate import load_inference_data
 from specsy import _setup_cfg
-from lime.transitions import label_decomposition
-from lime import load_cfg
+from specsy.innate import load_inference_data
+from specsy.tools import linear_regression
+from specsy.io import SpecSyError
+from lime import load_cfg, Line, label_decomposition
+from specsy.plotting.bokeh_functions import update_bokeh_figure
+
+try:
+    from bokeh.plotting import figure, show, save
+    from bokeh.models import ColumnDataSource, Whisker, HoverTool, TeeHead, CDSView, GroupFilter
+    bokeh_check = True
+except ImportError:
+    bokeh_check = False
+
 import corner
 
 
 theme = Themer(load_cfg(Path(__file__).parent/'specsy_theme.toml', fit_cfg_suffix=None))
-#
-# class Themer(Themer_Lime):
-#
-#     def __init__(self, conf, style='default'):
-#
-#         # Intialize the LiMe object
-#         Themer_Lime.__init__(self, conf, style)
-#
-#     def ax_defaults(self, fig_type=None, **kwargs):
-#
-#         # Default wavelength and flux
-#         if fig_type is None:
-#             ax_cfg = {}
-#
-#         else:
-#             ax_cfg = {}
-#
-#         return ax_cfg
-#
-# # Specsy figure labels and color formatter
-# # theme = Themer(_setup_cfg)
 
 
-def extinction_gradient(cHbeta_array, n_array, x, y_array, idcs_valid=None, line_labels=None, ref_label='ref',
-                        save_address=None,  title=None, fig_cfg={}, ax_cfg={}):
+def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, fig_cfg=None, ax_cfg=None, return_fig=False):
 
-    # Adjust default theme
-    PLOT_CONF = theme.fig_defaults()
+    # Extract the parameters from the log
+    line_norm = Line(frame.loc[frame.extinction_idcs == 0].index[0], band=frame)
+
+    idcs_lines = frame.loc[~np.isnan(frame.extinction_idcs)].index.to_numpy()
+    idcs_valid = (frame.loc[idcs_lines].extinction_idcs < 2).to_numpy()
+
+    x_arr = frame.loc[idcs_lines, 'f_lambda'].to_numpy() - frame.loc[line_norm.label, 'f_lambda']
+    y_arr = np.log10(frame.loc[idcs_lines, 'theo_ratio'].to_numpy()) - np.log10(frame.loc[idcs_lines, 'obs_ratio'].to_numpy())
+    y_err = (1 / np.log(10)) * (frame.loc[idcs_lines, 'obs_ratio_err'].to_numpy()/frame.loc[idcs_lines, 'obs_ratio'].to_numpy())
+
+    coeff_label = r'Hβ' if rel_Hbeta else f"{line_norm.label.replace('$', '')}"
+    ref_label = line_norm.latex_label[0].replace('$', '')
+
+    # Linear fitting
+    c_HI, c_HI_err, intercept, intercept_err = linear_regression(x_arr[idcs_valid], y_arr[idcs_valid], y_err[idcs_valid])
+    linear_fit = c_HI * x_arr + intercept
+    linear_label = f'c({coeff_label})={cHbeta:.3f}±{cHbeta_err:.3f}'
 
     # Adjust the axis labels to include the reference line
-    x_label = r'$f_{\lambda} - $' + f'$f_{{{ref_label.replace("$","")}}}$'
-    y_label = r'$log(\left(\frac{I_{\lambda}}{I_{ref}}\right)_{Theo})-log(\left(\frac{F_{\lambda}}{I_{ref}}\right)_{Obs})$'
-    y_label = y_label.replace('ref', ref_label.replace("$", ""))
-    AXES_CONF = {'xlabel': x_label, 'ylabel': y_label, 'title': title}
+    x_label = r'$f_{\lambda} - ' + f'f_{{{ref_label.replace("$","")}}}$'
+    y_label = (fr"$\log\left(\frac{{I_{{\lambda}}}}{{I_{{{ref_label}}}}}\right)_{{\mathrm{{theo}}}}"
+               fr"-\log\left(\frac{{F_{{\lambda}}}}{{F_{{{ref_label}}}}}\right)_{{\mathrm{{obs}}}}$")
+    title = fr'$c({coeff_label})$ extinction calculation'
 
-    # User configuration overrites user
-    PLT_CONF = {**PLOT_CONF, **fig_cfg}
-    AXES_CONF = {**AXES_CONF, **ax_cfg}
+    if theme.default_lib == 'matplotlib':
 
-    # Draw the figure
-    with rc_context(PLT_CONF):
+        # User configuration overrites user
+        PLOT_CONF = theme.fig_defaults()
+        AXES_CONF = {'xlabel': x_label, 'ylabel': y_label, 'title': title}
 
-        cHbeta, cHbeta_err = cHbeta_array
-        n, n_err = n_array
-        y, y_err = y_array
+        # Draw the figure
+        with rc_context(PLOT_CONF):
 
-        fig, ax = plt.subplots()
-        ax.set(**AXES_CONF)
+            fig, ax = plt.subplots()
+            AXES_CONF = AXES_CONF
+            ax.set(**AXES_CONF)
 
-        # Plot valid entries
-        idcs_valid = np.ones(x.size).astype(bool) if idcs_valid is None else idcs_valid
-        valid_scatter = ax.errorbar(x[idcs_valid], y[idcs_valid], y_err[idcs_valid], fmt='o')
+            # Plot valid entries
+            ax.errorbar(x_arr, y_arr, y_err, fmt='o')
 
-        # Plot excluded entries
-        if np.any(~idcs_valid):
-            ax.errorbar(x[~idcs_valid], y[~idcs_valid], y_err[~idcs_valid], fmt='o',
-                        color='tab:red', label='excluded lines')
+            # Plot excluded entries
+            if not np.all(idcs_valid):
+                ax.errorbar(x_arr[~idcs_valid], y_arr[~idcs_valid], y_err[~idcs_valid], fmt='o', color='tab:red',
+                            label='excluded lines')
 
-        # Linear fitting
-        linear_fit = cHbeta * x + n
-        linear_label = r'$c(H\beta)={:.2f}\,\pm\,{:.2f}$'.format(cHbeta, cHbeta_err)
-        ax.plot(x, linear_fit, linestyle='--', label=linear_label)
+            ax.plot(x_arr, linear_fit, linestyle='--', label=linear_label)
 
-        # Labels for the lines
-        for i, lineWave in enumerate(line_labels):
-            ax.annotate(lineWave,
-                        xy=(x[i], y[i]),
-                        xytext=(x[i], y[i] + 1.25 * y_err[i]),
-                        horizontalalignment="center",
-                        rotation=90,
-                        xycoords='data', textcoords=("data", "data"))
+            # Labels for the lines
+            for i, line_label in enumerate(frame.loc[idcs_lines].index):
+                ax.annotate(Line(line_label).latex_label[0],
+                            xy=(x_arr[i], y_arr[i]), xytext=(x_arr[i], y_arr[i] + 1.25 * y_err[i]),
+                            horizontalalignment="center", rotation=90,
+                            xycoords='data', textcoords=("data", "data"))
 
-        # Legend
-        ax.legend(loc=3, ncol=2)
+            # Legend
+            ax.legend(loc=8, ncol=2)
 
-        # Increase upper limit
-        y_lims = ax.get_ylim()
-        ax.set_ylim(y_lims[0], y_lims[1] * 2)
+            # Display/save the figure
+            save_close_fig_swicth(fname, 'tight', fig_obj=fig)
 
-        # Display/save the figure
-        save_close_fig_swicth(save_address, 'tight', fig_obj=fig)
+    elif theme.default_lib == 'bokeh':
+
+        if bokeh_check:
+
+            PLT_CONF = theme.fig_defaults(fig_cfg, plot_lib='bokeh')
+            fig = figure(tools=PLT_CONF.get('tools', "pan,wheel_zoom,box_zoom,reset,save"))
+
+            # Valid data set
+            source_1 = ColumnDataSource(data=dict(x=x_arr[idcs_valid], y=y_arr[idcs_valid], label=idcs_lines[idcs_valid],
+                                        y_upper=y_arr[idcs_valid]+y_err[idcs_valid], y_lower=y_arr[idcs_valid]-y_err[idcs_valid]))
+            r1 = fig.scatter('x', 'y', size=8, source=source_1)
+            fig.add_layout(Whisker(base="x", upper="y_upper", lower="y_lower", source=source_1, line_color=theme.colors['fg'],
+                                   upper_head=TeeHead(size=10, line_color=theme.colors['fg']),
+                                   lower_head=TeeHead(size=10, line_color=theme.colors['fg'])))
+
+            if not np.all(idcs_valid):
+                source_2 = ColumnDataSource(data=dict(x=x_arr[~idcs_valid], y=y_arr[~idcs_valid], label=idcs_lines[~idcs_valid],
+                                            y_upper=y_arr[~idcs_valid]+y_err[~idcs_valid], y_lower=y_arr[~idcs_valid]-y_err[~idcs_valid]))
+                r2 = fig.scatter('x', 'y', size=8, source=source_2,  legend_label='Excluded lines', color='red')
+                fig.add_layout(Whisker(base="x", upper="y_upper", lower="y_lower", source=source_2, line_color=theme.colors['fg'],
+                                       upper_head=TeeHead(size=10, line_color=theme.colors['fg']),
+                                       lower_head=TeeHead(size=10, line_color=theme.colors['fg'])))
+                renderers = [r1, r2]
+            else:
+                renderers = [r1]
+
+            # Hover tool for all points
+            fig.add_tools(HoverTool(renderers=renderers, tooltips=[("Label", "@label")]))
+
+            # Linear fit
+            fig.line(x_arr, linear_fit, line_dash='dashed', line_width=2, legend_label=linear_label.replace('$', '$$'),
+                     color=theme.colors['regression'])
+
+            fig.legend.location = "bottom_center"
+            fig.legend.orientation = "horizontal"
+
+            # Plot labels
+            fig.xaxis.axis_label = x_label.replace("$", "$$")
+            fig.yaxis.axis_label = y_label.replace("$", "$$")
+
+            # Adjust the format of the plot
+            update_bokeh_figure(fig, PLT_CONF)
+
+            # Save or display the plot
+            if return_fig:
+                return fig
+
+            elif fname is not None:
+                save(fname, filename=fname)
+
+            else:
+                # output_notebook()
+                show(fig)
+
+        else:
+            raise SpecSyError(f'Please install Bokeh or use "plot" (matplotlib) as the default library"')
+
+    else:
+        raise SpecSyError(f'Default plotting library: {theme.default_lib} is not recognized please use "plot" or "bokeh"')
 
     return
+
 
 def parameter_notation(param, mean, std):
 
