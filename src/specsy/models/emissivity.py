@@ -8,12 +8,11 @@ try:
 except ImportError:
     pyneb_check = False
 
-from lime import label_decomposition, Line
+from lime import Line
 from lime.io import check_file_dataframe
 from inspect import getfullargspec
 from scipy.optimize import curve_fit
 from pathlib import Path
-from astropy.io import fits
 
 
 _logger = logging.getLogger('SpecSy')

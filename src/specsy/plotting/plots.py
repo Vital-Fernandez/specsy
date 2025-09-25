@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from lime.plotting.plots import save_close_fig_swicth
 from lime.plotting.format import  Themer as Themer_Lime, latex_science_float, theme
@@ -29,7 +28,7 @@ theme = Themer(load_cfg(Path(__file__).parent/'specsy_theme.toml', fit_cfg_suffi
 def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, fig_cfg=None, ax_cfg=None, return_fig=False):
 
     # Extract the parameters from the log
-    line_norm = Line(frame.loc[frame.extinction_idcs == 0].index[0], band=frame)
+    line_norm = Transition.from_log(frame.loc[frame.extinction_idcs == 0].index[0], band=frame)
 
     idcs_lines = frame.loc[~np.isnan(frame.extinction_idcs)].index.to_numpy()
     idcs_valid = (frame.loc[idcs_lines].extinction_idcs < 2).to_numpy()
