@@ -153,7 +153,7 @@ def extinction_coeff_calc(log, norm_line, R_V=3.1, law='G03 LMC', tem=10000.0, d
 
             # Get line properties
             params = ['wavelength', 'latex_label']
-            waves_norm, latex_norm = label_decomposition(norm_line, params_list=params, scalar_output=True)
+            waves_norm, latex_norm = label_decomposition([norm_line], params_list=params, scalar_output=True)
             waves_array, latex_array = label_decomposition(line_list, params_list=params)
 
             flux_array = log.loc[line_list, flux_column].to_numpy()

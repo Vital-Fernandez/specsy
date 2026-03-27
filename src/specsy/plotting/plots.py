@@ -28,17 +28,17 @@ theme = Themer(load_cfg(Path(__file__).parent/'specsy_theme.toml', fit_cfg_suffi
 def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, fig_cfg=None, ax_cfg=None, return_fig=False):
 
     # Extract the parameters from the log
-    line_norm = Transition.from_log(frame.loc[frame.extinction_idcs == 0].index[0], band=frame)
+    norm_label = frame.loc[frame.extinction_idcs == 0].index[0]
+    norm_latex = frame.loc[frame.extinction_idcs == 0].latex_label.values[0]
+    coeff_label = r'Hβ' if rel_Hbeta else norm_latex
+    norm_latex = norm_latex.replace('$', '')
 
     idcs_lines = frame.loc[~np.isnan(frame.extinction_idcs)].index.to_numpy()
     idcs_valid = (frame.loc[idcs_lines].extinction_idcs < 2).to_numpy()
 
-    x_arr = frame.loc[idcs_lines, 'f_lambda'].to_numpy() - frame.loc[line_norm.label, 'f_lambda']
+    x_arr = frame.loc[idcs_lines, 'f_lambda'].to_numpy() - frame.loc[norm_label, 'f_lambda']
     y_arr = np.log10(frame.loc[idcs_lines, 'theo_ratio'].to_numpy()) - np.log10(frame.loc[idcs_lines, 'obs_ratio'].to_numpy())
     y_err = (1 / np.log(10)) * (frame.loc[idcs_lines, 'obs_ratio_err'].to_numpy()/frame.loc[idcs_lines, 'obs_ratio'].to_numpy())
-
-    coeff_label = r'Hβ' if rel_Hbeta else f"{line_norm.label.replace('$', '')}"
-    ref_label = line_norm.latex_label[0].replace('$', '')
 
     # Linear fitting
     c_HI, c_HI_err, intercept, intercept_err = linear_regression(x_arr[idcs_valid], y_arr[idcs_valid], y_err[idcs_valid])
@@ -46,10 +46,10 @@ def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, f
     linear_label = f'c({coeff_label})={cHbeta:.3f}±{cHbeta_err:.3f}'
 
     # Adjust the axis labels to include the reference line
-    x_label = r'$f_{\lambda} - ' + f'f_{{{ref_label.replace("$","")}}}$'
-    y_label = (fr"$\log\left(\frac{{I_{{\lambda}}}}{{I_{{{ref_label}}}}}\right)_{{\mathrm{{theo}}}}"
-               fr"-\log\left(\frac{{F_{{\lambda}}}}{{F_{{{ref_label}}}}}\right)_{{\mathrm{{obs}}}}$")
-    title = fr'$c({coeff_label})$ extinction calculation'
+    x_label = r'$f_{\lambda} - ' + f'f_{{{norm_latex}}}$'
+    y_label = (fr"$\log\left(\frac{{I_{{\lambda}}}}{{I_{{{norm_latex}}}}}\right)_{{\mathrm{{theo}}}}"
+               fr"-\log\left(\frac{{F_{{\lambda}}}}{{F_{{{norm_latex}}}}}\right)_{{\mathrm{{obs}}}}$")
+    title = fr'c({coeff_label}) extinction calculation'
 
     if theme.default_lib == 'matplotlib':
 
@@ -76,7 +76,7 @@ def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, f
 
             # Labels for the lines
             for i, line_label in enumerate(frame.loc[idcs_lines].index):
-                ax.annotate(Line(line_label).latex_label[0],
+                ax.annotate(frame.loc[line_label].latex_label,
                             xy=(x_arr[i], y_arr[i]), xytext=(x_arr[i], y_arr[i] + 1.25 * y_err[i]),
                             horizontalalignment="center", rotation=90,
                             xycoords='data', textcoords=("data", "data"))
@@ -127,8 +127,8 @@ def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, f
             fig.xaxis.axis_label = x_label.replace("$", "$$")
             fig.yaxis.axis_label = y_label.replace("$", "$$")
 
-            # Adjust the format of the plot
-            update_bokeh_figure(fig, PLT_CONF)
+            # # Adjust the format of the plot TODO fix this one
+            # update_bokeh_figure(fig, PLT_CONF)
 
             # Save or display the plot
             if return_fig:
