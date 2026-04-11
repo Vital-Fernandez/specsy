@@ -1,15 +1,15 @@
 import numpy as np
 import lime
-import innate
+import innate_old
 import specsy as sy
 from pathlib import Path
 
 
 # Data location
-synthConfigPath = Path('./sample_data/synth_conf.toml')
-synthLinesLogPath = Path('./sample_data/synth_linesLog.txt')
-emissivity_conf = Path('./sample_data/emissivity_formulae.toml')
-emissivity_file = Path('./sample_data/emissivity_grids.nc')
+synthConfigPath = Path('../sample_data/synth_conf.toml')
+synthLinesLogPath = Path('../sample_data/synth_linesLog.txt')
+emissivity_conf = Path('../sample_data/emissivity_formulae.toml')
+emissivity_file = Path('../sample_data/emissivity_grids.nc')
 old_emissivity_file = Path('./sample_data/old_emissivity_grids.nc')
 output_db = Path('./sample_data/synth_fitting.nc')
 
@@ -29,7 +29,7 @@ log = sy.load_frame(synthLinesLogPath, flux_type='intg')
 # lines_db.loc['O2_7319A_m', 'wavelength'] = 7318.8124
 # lines_db.loc['O2_7319A_m', 'group_label'] = "O2_7319A+O2_7330A"
 # # emiss_dict = sy.models.emissivity.generate_emis_grid_orig(lines_db, norm_header='norm_line')
-# # sy.innate.save_grids(old_emissivity_file, emiss_dict)
+# # sy.innate_old.save_grids(old_emissivity_file, emiss_dict)
 #
 # # Data grids parameters
 # params = 'tem', 'den'
@@ -61,13 +61,13 @@ log = sy.load_frame(synthLinesLogPath, flux_type='intg')
 #                                                               normalization_line='H1_4861A', log_scale=True)
 #
 # # Save the data into a dictionary
-# innate.save_dataset(emissivity_file, grid_dict, data_conf, trans_conf)
+# innate_old.save_dataset(emissivity_file, grid_dict, data_conf, trans_conf)
 
 # Compare old and new version
 emiss_old = sy.Innate(old_emissivity_file, x_space=cfg['simulation_properties']['temp_grid_array'],
                                        y_space=cfg['simulation_properties']['den_grid_array'])
 
-emiss_new = innate.DataSet.from_file(Path('./sample_data/emissivity_grids_porSi.nc'))
+emiss_new = innate_old.DataSet.from_file(Path('./sample_data/emissivity_grids_porSi.nc'))
 
 print('Coso')
 print(emiss_old.grid['H1_6563A'])
@@ -80,7 +80,7 @@ print(emiss_new['H1_6563A'].data)
 #
 # # Save the data into a dictionary
 # output_file = f'../data/emissivity_grids.nc'
-# innate.save_dataset(output_file, emiss_dict, data_conf, trans_conf)
+# innate_old.save_dataset(output_file, emiss_dict, data_conf, trans_conf)
 
 # Generate the containers for the data and configuration
 

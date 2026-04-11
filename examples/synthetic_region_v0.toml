@@ -1,0 +1,81 @@
+[synth_spectrum.true_params]
+H1        = 0
+O2        = 7.805
+O3        = 8.055
+S2        = 5.485
+S3        = 6.942
+Ar3       = 5.875
+Ar4       = 5.215
+Ne3       = 7.265
+N2        = 7.655
+cHBeta    = 0.3
+temp_high = 12000.0
+temp_low  = 10000.0
+den_low   = 150.0
+den_med   = 350.0
+
+[synth_spectrum.lines]
+line_list = ["H1_4340A", "H1_6563A",
+            "Ne3_3869A",
+            "Ar3_7136A", "Ar3_7751A",
+            "Ar4_4740A",
+            "O2_3726A",  "O2_3729A",
+            "N2_6548A",  "N2_6583A",
+            "O3_4363A",  "O3_4959A", "O3_5007A",
+            "S2_4069A",  "S2_6716A", "S2_6731A",
+            "S3_6312A",  "S3_9068A", "S3_9530A"]
+ref_line = 'H1_4861A'
+
+[synth_spectrum.extinction]
+law = 'CCM89'
+R_V = 3.1
+
+[synth_spectrum.regions.r0]
+name      = "low"
+species   = ["H1", "S2", "S3", "O2", "N2"]
+temp_mode = "free"
+den_mode  = "free"
+
+[synth_spectrum.regions.r1]
+name      = "high"
+species   = ["O3", "Ar3", "Ar4", "Ne3"]
+temp_mode = "free"
+den_mode  = "tied"
+den_ref   = "low"
+#den_eq    = ""
+
+#[synth_spectrum.regions.r0]
+#name      = "low"
+#species   = ["H1", "S2", "S3", "O2", "N2"]
+#temp_mode = "tied"
+#temp_ref  = 'high'
+#temp_eq   = 'TSIII_Hagele2006'
+#den_mode  = "free"
+
+[direct_method_priors]
+logParams_list = ["He1", "He2"]
+
+temp_low = ["Normal",15000.0,5000.0,1.0,0.0]
+temp_med = ["Normal",15000.0,5000.0,1.0,0.0]
+temp_high = ["Normal",15000.0,5000.0,1.0,0.0]
+temp_vhigh = ["Normal",15000.0,5000.0,1.0,0.0]
+
+den_low = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+den_med = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+den_high = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+den_vhigh = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+
+cHBeta = ["HalfCauchy", 0.0, 2.0, 1.0, 0.0]
+tau = ["Lognormal",0,1.0,1.0,0.0]
+Ar3 = ["Normal",5.0,5.0,1.0,0.0]
+Ar4 = ["Normal",5.0,5.0,1.0,0.0]
+He1 = ["Normal",0.0,3.0,1.0,0.0]
+He2 = ["Normal",0.0,3.0,1.0,0.0]
+N2 = ["Normal",5.0,5.0,1.0,0.0]
+O2 = ["Normal",5.0,5.0,1.0,0.0]
+O3 = ["Normal",5.0,5.0,1.0,0.0]
+S2 = ["Normal",5.0,5.0,1.0,0.0]
+S3 = ["Normal",5.0,5.0,1.0,0.0]
+Cl3 = ["Normal",5.0,5.0,1.0,0.0]
+Ne3 = ["Normal",5.0,5.0,1.0,0.0]
+Fe3 = ["Normal",5.0,5.0,1.0,0.0]

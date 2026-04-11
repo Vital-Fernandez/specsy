@@ -10,7 +10,7 @@ import lime
 from lime.io import load_cfg, save_cfg, save_frame, check_file_dataframe, check_fit_conf
 from collections.abc import Sequence
 from astropy.io import fits
-
+from innate import load_dataset
 
 FITS_INPUTS_EXTENSION = {'lines_list': '20A', 'line_fluxes': 'E', 'line_err': 'E'}
 
@@ -344,3 +344,30 @@ def save_trace(trace, prior_dict, line_labels, input_fluxes, input_err, inferenc
     fit_results = {'models': inference_model, 'trace': trace, 'inputs': inputs, 'outputs': output_dict}
 
     return fit_results
+
+
+def load_emissivity_interp(fname, array_mode=False):
+
+    emis_set = load_dataset(fname)
+
+    interp_dict = {}
+    for trans, emis_matrix in emis_set[0].items():
+
+        temp_range = np.linspace(*emis_set[1][trans]['temp_range'])
+        den_range = np.linspace(*emis_set[1][trans]['den_range'])
+        log_emis = np.log10(emis_matrix)
+
+        interp = make_bilinear_interp(temp_range, den_range, log_emis)
+
+        if array_mode:
+            x_sym = tensor.dscalar("x")
+            y_sym = tensor.dscalar("y")
+            interp_dict[trans] = pt_function([x_sym, y_sym], interp(x_sym, y_sym))
+
+        else:
+            interp_dict[trans] = interp
+
+    return interp_dict
+
+
+    return

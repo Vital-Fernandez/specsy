@@ -5,7 +5,7 @@ from pytensor import tensor as tt, function
 from ..models.fluxes_line import EmissionTensors
 from ..models.chemistry import TOIII_from_TSIII_relation, TOII_from_TOIII_relation
 from pymc.sampling.jax import sample_blackjax_nuts
-from ..innate import save_inference_data
+from ..innate_old import save_inference_data
 import arviz as az
 import xarray as xr
 from warnings import catch_warnings, simplefilter

@@ -25,7 +25,7 @@ with open(_conf_path, mode="rb") as fp:
 __version__ = _setup_cfg['metadata']['version']
 
 from .tools import flux_distribution
-from .innate import Innate, load_inference_data, save_inference_data
+from .innate_old import Innate, load_inference_data, save_inference_data
 from .treatement import SpectraSynthesizer, ChemicalModel
 from .models import *
 from .plotting.plots import plot_traces, plot_flux_grid, plot_corner_matrix, theme

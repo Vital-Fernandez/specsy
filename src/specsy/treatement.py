@@ -11,7 +11,6 @@ from .operations.interpolation import GridWrapper
 from .inference.emission import PhotoIonizationModels
 from .models.fluxes_line import EmissionFluxModel
 from .models.extinction import flambda_calc
-from .tools import extract_fluxes, normalize_fluxes
 
 _logger = logging.getLogger('SpecSy')
 
@@ -252,3 +251,81 @@ class SpectraSynthesizer(GridWrapper, PhotoIonizationModels):
             user_header['logP_values'] = dict(self.inferenModel.check_test_point())
             # user_header['r_hat'] = dict(pymc3.summary(self.fit_results['trace'])['r_hat']) # TODO check r_hat values
             fits_db(output_path, model_db=self.fit_results, ext_name=ext_name, header=user_header)
+
+
+def direct_method_multi_region(lines_df, emis_interp, true_params=None):
+
+    # Convert the fluxes to the log scale
+    flux_arr, err_arr = lines_df[['line_flux', 'line_err']].to_numpy().T
+    input_obs = np.log10(flux_arr)
+    input_err = np.log10(1 + err_arr / flux_arr)
+
+    # Unpack physical parameters
+    flambda_arr = lines_df.f_lambda.to_numpy()
+    particle_arr = lines_df.particle.to_numpy()
+    ion_species = pd.unique(particle_arr)
+
+    # Unpack the temp/den structure arrays
+    Tem_label_arr = lines_df.temp.to_numpy()
+    den_label_arr = lines_df.den.to_numpy()
+    tem_eq_arr = lines_df.eq_temp.to_numpy()
+    den_eq_arr = lines_df.eq_den.to_numpy()
+    unique_params = pd.unique(lines_df[['temp', 'den']].values.ravel())
+
+    # Convenience arrays for the workflow
+    line_arr = lines_df.index.to_numpy()
+    range_arr = np.arange(len(line_arr))
+    temp_eq_check = lines_df.eq_temp.isnull().to_numpy()
+    den_eq_check = lines_df.eq_den.isnull().to_numpy()
+
+    with pm.Model(coords={"lines": line_arr}) as dm_model:
+
+        # Container to store the models
+        theo_flux = tensor.zeros(line_arr.size)
+
+        # Compile the abundances
+        for ion in ion_species:
+            pm.Normal(name=ion, mu=5, sigma=5)
+
+        # Extinction
+        cHbeta = pm.HalfCauchy(name="cHBeta", beta=2)
+
+        # Generate the free temperatures and densities
+        for param in unique_params:
+            _PRIOR_PARAM[param](param, **_DIST_PARAM[param])
+
+        for i in range_arr:
+
+            # Compute the emissivity
+            tem = dm_model[Tem_label_arr[i]] if temp_eq_check[i] else _TEMP_FUNC[tem_eq_arr[i]](dm_model[Tem_label_arr[i]])
+            den = dm_model[den_label_arr[i]] if den_eq_check[i] else _TEMP_FUNC[den_eq_arr[i]](dm_model[den_label_arr[i]])
+            emis = emis_interp[line_arr[i]](tem, den)
+
+            if particle_arr[i] == 'H1':
+                flux = emis - flambda_arr[i] * cHbeta
+            else:
+                flux = dm_model[particle_arr[i]] + emis - flambda_arr[i] * cHbeta - 12
+
+            theo_flux = tensor.inc_subtensor(theo_flux[i], flux)
+
+        # Stored the fluxes
+        pm.Deterministic('theo_flux', theo_flux)
+
+        # Likelihood
+        pm.Normal("likelihood", mu=theo_flux, sigma=input_err, observed=input_obs, dims='lines')
+
+
+    # Run the model
+    with dm_model:
+        trace = pm.sample(draws=1000, tune=2000, target_accept=0.9, chains=8, cores=8, nuts_sampler='numpyro')
+
+    # Output the results
+    var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "Ar4", "Ne3", "cHBeta"] + list(unique_params)
+    az.plot_pair(trace, var_names=var_names, divergences=True)
+    az.plot_posterior(trace, var_names=var_names)
+    summary = az.summary(trace, var_names=var_names)
+    print(summary)
+    plt.show()
+
+    return
+

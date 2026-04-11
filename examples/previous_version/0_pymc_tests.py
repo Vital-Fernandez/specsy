@@ -14,7 +14,7 @@ successes = 5
 
 
 # Locate the array
-conf_file = Path('./sample_data/synth_conf.toml')
+conf_file = Path('../sample_data/synth_conf.toml')
 synth_cfg = specsy.load_cfg(conf_file)
 true_values = synth_cfg['true_values']
 

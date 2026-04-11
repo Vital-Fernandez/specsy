@@ -213,13 +213,13 @@ def extinction_coeff_calc(log, norm_line, R_V=3.1, law='G03 LMC', tem=10000.0, d
     return cHbeta, cHbeta_err, log
 
 
-def flambda_calc(wavelength_array, R_v, red_curve, norm_wavelength):
+def flambda_calc(wavelength_array, R_V=3.1, law='CCM89', norm_wave=4861):
 
     # Call pyneb
-    rcGas = pn.RedCorr(R_V=R_v, law=red_curve)
+    rcGas = pn.RedCorr(R_V=R_V, law=law)
 
     # Compute Xx parametrisation
-    HbetaXx = rcGas.X(norm_wavelength)
+    HbetaXx = rcGas.X(norm_wave)
     lineXx = rcGas.X(wavelength_array)
 
     # Flambda array

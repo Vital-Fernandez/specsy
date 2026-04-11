@@ -6,8 +6,8 @@ from specsy.operations.interpolation import emissivity_grid_calc
 
 
 # Data location
-synthConfigPath = Path('./sample_data/synth_conf.toml')
-synthLinesLogPath = Path('./sample_data/synth_linesLog.txt')
+synthConfigPath = Path('../sample_data/synth_conf.toml')
+synthLinesLogPath = Path('../sample_data/synth_linesLog.txt')
 output_db = Path('./sample_data/synth_fitting_true.nc')
 
 # Load simulation parameters

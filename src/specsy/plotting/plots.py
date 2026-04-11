@@ -6,7 +6,7 @@ from pathlib import Path
 from lime.plotting.format import Themer
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
 from specsy import _setup_cfg
-from specsy.innate import load_inference_data
+from specsy.innate_old import load_inference_data
 from specsy.tools import linear_regression
 from specsy.io import SpecSyError
 from lime import load_cfg, Line, label_decomposition

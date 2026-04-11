@@ -5,7 +5,7 @@ from specsy.plotting.plots import plot_corner_matrix
 specsy.theme.set_style('dark')
 
 # # Locate the array
-conf_file = Path('./sample_data/synth_conf.toml')
+conf_file = Path('../sample_data/synth_conf.toml')
 output_db = Path('./sample_data/synth_fitting_true.nc')
 
 synth_cfg = specsy.load_cfg(conf_file)

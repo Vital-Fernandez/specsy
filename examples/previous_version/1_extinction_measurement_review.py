@@ -26,7 +26,7 @@ def pyneb_cHbeta_calc(measurements_df, labelA, labelB, r_v, red_law, tem, den, )
 specsy.theme.set_style('dark', library='bokeh')
 
 # Load the line measurements
-log_file = './sample_data/manga_lines_log.txt'
+log_file = '../sample_data/manga_lines_log.txt'
 log_df = lime.load_frame(log_file)
 R_V = 3.1
 law = 'G03 LMC'

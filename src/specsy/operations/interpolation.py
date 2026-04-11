@@ -1,31 +1,66 @@
 import itertools
 import numpy as np
 import pytensor.tensor as tt
+from pytensor import function as pt_function
+
 from ..io import load_HII_CHI_MISTRY_grid, label_decomposition
-# from ..models.emissivity import IonEmissivity
-#
-#
-# def emissivity_grid_calc(lines_array, comp_dict, temp_grid_points=(9000, 20000, 251), den_grid_points=(1, 600, 101)):
-#
-#     print(f'- Computing emissivity grids for {len(lines_array)} lines\n')
-#
-#     # Compute the atomic data grids
-#     objIons = IonEmissivity(tempGrid=temp_grid_points, denGrid=den_grid_points)
-#
-#     ion_array, wave_array, latex_array = label_decomposition(lines_array, fit_conf=comp_dict)
-#
-#     # Define the dictionary with the pyneb ion objects
-#     ionDict = objIons.get_ions_dict(ion_array)
-#
-#     # Compute the emissivity surfaces for the observed emission lines
-#     objIons.computeEmissivityGrids(lines_array, ionDict, combined_dict=comp_dict)
-#
-#     # Compile exoplanet interpolator functions so they can be used wit numpy
-#     emisGridInterpFun = gridInterpolatorFunction(objIons.emisGridDict, objIons.tempRange, objIons.denRange)
-#
-#     print(f'-- completed')
-#
-#     return emisGridInterpFun
+
+
+
+def make_bilinear_interp(x_grid, y_grid, z_grid):
+
+    """
+    Returns a pytensor-differentiable bilinear interpolation function.
+
+    x_grid: 1D np.array, shape (N,)
+    y_grid: 1D np.array, shape (M,)
+    z_grid: 2D np.array, shape (N, M)
+
+    """
+
+    dx = x_grid[1] - x_grid[0]
+    dy = y_grid[1] - y_grid[0]
+    x0 = x_grid[0]
+    y0 = y_grid[0]
+    N = len(x_grid) - 2
+    M = len(y_grid) - 2
+    z = tt.as_tensor_variable(z_grid)  # baked into the graph, not sampled
+
+    def interp(x, y):
+        i = tt.clip(tt.cast(tt.floor((x - x0) / dx), "int32"), 0, N)
+        j = tt.clip(tt.cast(tt.floor((y - y0) / dy), "int32"), 0, M)
+
+        tx = (x - (x0 + i * dx)) / dx
+        ty = (y - (y0 + j * dy)) / dy
+
+        return (z[i, j] * (1 - tx) * (1 - ty) +
+                z[i + 1, j] * tx * (1 - ty) +
+                z[i, j + 1] * (1 - tx) * ty +
+                z[i + 1, j + 1] * tx * ty)
+
+    return interp
+
+
+def compile_bilinear_interp(emis_dataset, array_mode=False):
+
+    interp_dict = {}
+    for trans, emis_matrix in emis_dataset[0].items():
+
+        temp_range = np.linspace(*emis_dataset[1][trans]['temp_range'])
+        den_range = np.linspace(*emis_dataset[1][trans]['den_range'])
+        log_emis = np.log10(emis_matrix)
+
+        interp = make_bilinear_interp(temp_range, den_range, log_emis)
+
+        if array_mode:
+            x_sym = tt.dscalar("x")
+            y_sym = tt.dscalar("y")
+            interp_dict[trans] = pt_function([x_sym, y_sym], interp(x_sym, y_sym))
+
+        else:
+            interp_dict[trans] = interp
+
+    return interp_dict
 
 
 def gridInterpolatorFunction(interpolatorDict, x_range, y_range, z_range=None, interp_type='point'):

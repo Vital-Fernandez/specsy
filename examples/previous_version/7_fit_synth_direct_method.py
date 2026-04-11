@@ -1,11 +1,11 @@
 import specsy as sy
 from pathlib import Path
-import innate
+import innate_old
 
 # Data location
-synthConfigPath = Path('./sample_data/synth_conf.toml')
-emissivity_cfg = Path('./sample_data/emissivity_grids.nc')
-synthLinesLogPath = Path('./sample_data/synth_linesLog.txt')
+synthConfigPath = Path('../sample_data/synth_conf.toml')
+emissivity_cfg = Path('../sample_data/emissivity_grids.nc')
+synthLinesLogPath = Path('../sample_data/synth_linesLog.txt')
 output_db = Path('./sample_data/synth_fitting.nc')
 
 from specsy.plotting.plots import theme
@@ -14,7 +14,7 @@ theme.set_style('dark')
 
 # Configuration
 cfg = sy.load_cfg(synthConfigPath)
-emiss_data_set = innate.DataSet.from_file(emissivity_cfg)
+emiss_data_set = innate_old.DataSet.from_file(emissivity_cfg)
 
 # Load lines observations
 log = sy.load_frame(synthLinesLogPath, flux_type='intg')

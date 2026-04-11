@@ -1,12 +1,140 @@
 import logging
+from dataclasses import dataclass, field
+from typing import Callable, Optional, Union
+
 import numpy as np
+from pandas import DataFrame
 from scipy.stats import truncnorm, norm
-from lime.tools import extract_fluxes, normalize_fluxes
 from scipy.optimize import curve_fit
+from lime import Line
 
 # TODO some of these could go to lime
 
 _logger = logging.getLogger('SpecSy')
+
+
+@dataclass
+class RegionParam:
+    """
+    Defines how a single variable (temperature or density) is specified.
+
+    - "free":  provide distribution and kwargs. The variable is sampled.
+    - "tied":  provide ref (name or index) to link to another region.
+               Optionally provide an equation key (string) to transform the
+               parent value. If no equation is provided, the value is copied as-is.
+    """
+
+    label: str
+
+    mode: str  # "free" | "tied"
+
+    # Distribution for free variable and its parameters
+    distr: Optional[Callable] = None
+    kwargs: dict = field(default_factory=dict)
+
+    # Parent region for the parameter and key for the empirical/theoretical relation if necessary
+    ref: Optional[Union[str, int]] = None
+    eq: Optional[str] = None  # key into equations dict
+
+
+class Region:
+
+    def __init__(self, name, species, temp_mode, temp_dist=None, temp_kwargs=None, temp_ref=None, temp_eq=None,
+                 den_mode=None, den_dist=None, den_kwargs=None, den_ref=None, den_eq=None, ):
+        self.name = name
+        self.species = species
+        self.temp = RegionParam('temp', temp_mode, distr=temp_dist, kwargs=temp_kwargs, ref=temp_ref, eq=temp_eq)
+        self.den = RegionParam('den', den_mode, distr=den_dist, kwargs=den_kwargs, ref=den_ref, eq=den_eq)
+
+        return
+
+
+class MultiRegionModel:
+
+    def __init__(self, regions: list[Region],
+                 temp_equations_dict: dict[str, Callable] = None,
+                 den_equations_dict: dict[str, Callable] = None):
+
+        assert 1 <= len(regions) <= 4, "Between 1 and 4 regions allowed"
+        self.regions = regions
+        self.size = len(regions)
+        # self.temp_eq_dict = temp_equations_dict or _TEMP_FUNC
+        # self.den_eq_dict = den_equations_dict or _DEN_FUNC
+        self.region_map: dict = {r.name: r for r in regions}
+        self.sampled: dict = {}
+
+    def build(self):
+
+        # Sample the distribution value if free
+        for region in self.regions:
+            self.sampled[region.name] = {}
+
+            if region.temp.mode == "free":
+                self.sampled[region.name]["temp"] = region.temp.distr(**region.temp.kwargs)
+
+            if region.den.mode == "free":
+                self.sampled[region.name]["den"] = region.den.distr(**region.den.kwargs)
+
+        return self
+
+    def get(self, region_name: str, var_type: str):
+
+        # Recover the requested parameter for the physical region
+        region = self.region_map[region_name]
+        var_spec = getattr(region, var_type)
+        equations = getattr(self, f"{var_type}_eq_dict")
+
+        match var_spec.mode:
+
+            # Free variable
+            case "free":
+                return self.sampled[region_name][var_type]
+
+            # Tied to another example
+            case 'tied':
+                ref_name = self.regions[var_spec.ref].name if isinstance(var_spec.ref, int) else var_spec.ref
+                parent_value = self.get(ref_name, var_type)  # recursive call
+
+                if var_spec.eq is not None:
+                    return equations[var_spec.eq](parent_value)
+                else:
+                    return parent_value
+
+            case _:
+                raise ValueError(f"Unknown mode '{var_spec.mode}'. Use 'free' or 'tied'.")
+
+    def map_line_structure(self, line_list, temp_label='temp', den_label='den'):
+
+        # Container to tabulate the data and conditions of the table
+        df = DataFrame(index=line_list,
+                          columns=["particle", "region", temp_label, den_label, "eq_temp", "eq_den"])
+
+        # Add particles to the table
+        line_list = Line.from_list(line_list)
+        df['particle'] = [line.particle.label for line in line_list]
+
+        # Map the regions
+        for region in self.regions:
+            idcs = df.particle.isin(region.species)
+            df.loc[idcs, 'region'] = region.name
+
+        # Recover the temperature and density structure
+        for region in self.regions:
+
+            # Assign the free params
+            idcs = df.region == region.name
+            for param_label in [temp_label, den_label]:
+                param = getattr(region, param_label)
+                if param.mode == "free":
+                    df.loc[idcs, param_label] = f'{param.label}_{region.name}'
+                else:
+                    df.loc[idcs, param_label] = f'{param.label}_{param.ref}'
+                    if param.eq is not None:
+                        df.loc[idcs, f'eq_temp'] = param.eq
+
+        return df
+
+
 
 # Percentile notation for uncertainty
 def percentile_latex_uncertainty(median, superscript, subscript, sig_fig=2):

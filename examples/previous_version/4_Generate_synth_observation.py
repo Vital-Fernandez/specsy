@@ -11,7 +11,7 @@ from specsy.operations.interpolation import emissivity_grid_calc
 from pathlib import Path
 
 # Load the models configuration
-model_cfg = sy.load_cfg('./sample_data/default_cfg.toml')
+model_cfg = sy.load_cfg('../sample_data/default_cfg.toml')
 
 # Set the synthetic observation parameter values
 param_dict = {'n_e': 150.0,
@@ -117,7 +117,7 @@ line_log['norm_line'] = 'H1_4861A'
 
 
 # # We proceed to safe the synthetic spectrum as if it were a real observation
-log_file_address = './sample_data/synth_linesLog.txt'
+log_file_address = '../sample_data/synth_linesLog.txt'
 sy.save_frame(log_file_address, line_log)
 
 # Save the parameters in the natural scale
@@ -127,6 +127,6 @@ for param in model_cfg['priors_configuration']['logParams_list']:
     model_cfg['true_values'][param] = float(np.power(10, model_cfg['true_values'][param]))
 model_cfg['inference_model_configuration']['input_lines_list'] = input_lines
 
-cfg_file_address = './sample_data/synth_conf.toml'
+cfg_file_address = '../sample_data/synth_conf.toml'
 sy.save_cfg(model_cfg, cfg_file_address)
 

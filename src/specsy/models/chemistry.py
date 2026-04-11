@@ -13,7 +13,7 @@ from ..operations.pytensors import EmissionFluxModel
 from ..tools import truncated_gaussian, flux_distribution
 from .chemistry_inference import direct_method_inference
 from .extinction import flambda_calc
-from ..innate import save_inference_data
+from ..innate_old import save_inference_data
 
 try:
     import pyneb as pn
@@ -28,13 +28,18 @@ f_lambda_dict = {'Ne5_3426A': 0.39007327642328193, 'H1_3704A': 0.314080569360310
 _logger = logging.getLogger('SpecSy')
 
 
-def TOIII_from_TSIII_relation(T_low):
+def TSIII_from_TOIII_relation(T_high):
     # From Hagele et al 2006
+    return (1.19 * T_high / 10000.0 - 0.32) * 10000.0
+
+
+# From Hagele et al 2006
+def TOIII_from_TSIII_relation(T_low):
     return (0.8403 * T_low / 10000.0 + 0.2689) * 10000.0
 
 
+# From Epm and Cotini 2009
 def TOII_from_TOIII_relation(T_high, n_e):
-    # From Epm and Cotini 2009
     return ((1.2 + 0.002*n_e + 4.2/n_e) / (10000.0/T_high + 0.08 + 0.003*n_e + 2.5/n_e)) * 10000.0
 
 
@@ -185,14 +190,6 @@ def sufur_diaz_2022(lines_log, S2_lines=('S2_6717A', 'S2_6731A'), S3_lines=('S3_
 
     return np.mean(S_H), np.std(S_H)
 
-
-def TSIII_from_TOIII_relation(T_high):
-    # From Hagele et al 2006
-    return (1.19 * T_high / 10000.0 - 0.32) * 10000.0
-
-def direct_temp():
-
-    return
 
 
 METHODS_DICT = {'Hagele_2006': TSIII_from_TOIII_relation}
