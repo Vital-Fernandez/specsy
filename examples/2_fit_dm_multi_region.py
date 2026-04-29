@@ -1,32 +1,49 @@
 import numpyro
+
+# Number of cores available
 numpyro.set_host_device_count(8)
 
 import jax
-jax.config.update("jax_platform_name", "cpu") # Force JAX to use CPU
 
-import lime
-from innate import load_dataset
-from specsy.operations.interpolation import compile_bilinear_interp
-from specsy.models.chemistry_inference import direct_method_multi_region
+# Selecting CPU sampling with JAX
+jax.config.update("jax_platform_name", "cpu")
 
+import specsy as sy
 
 # Synthetic region base parameters
-cfg_fname = f'synthetic_region_v0.toml'
-lines_fname = f'./synthetic_lines_region_v0.txt'
-trace_fname = f'./synthetic_trace_v0.nc'
+cfg_fname = f'./synthetic_spectrum_region_v0.toml'
+lines_fname = f'./synthetic_spectrum_lines_region_v2.txt'
+emis_fname = f'./emissivity_grids_pyneb_1.1.30.nc'
+trace_fname = f'./synthetic_spectrum_trace_v2.nc'
 
-spec_cfg = lime.load_cfg(cfg_fname)
-structure_df = lime.load_frame(lines_fname)
+# Load the data
+spec_cfg = sy.load_cfg(cfg_fname)
+structure_df = sy.load_frame(lines_fname)
 
-# Load the emissivity interpolator
-emis_file = load_dataset('./emissivity_grids_pyneb_1.1.30.nc')
-interp_dict_np = compile_bilinear_interp(emis_file)
+obj = sy.Nebula.from_lines_frame(structure_df, spec_cfg)
 
-# Run the Bayesian sampler
-true_params = spec_cfg['synth_spectrum']['true_params']
-priors = spec_cfg['direct_method_priors']
-trace = direct_method_multi_region(structure_df, interp_dict_np, priors, fname=trace_fname)
+obj.infer.direct_method.prepare_inputs(emissivity_source=emis_fname, norm_list='H1_4861A', normalize_flux=False,
+                                       prior_cfg=spec_cfg['direct_method_priors'])
 
+print(obj.infer.direct_method.lines_structure.to_string())
+
+obj.infer.direct_method.run()
+
+obj.infer.direct_method.plot_trace()
+
+
+# # Create the chemical model
+# chem_model = sy.DirectMethod(structure_df, emis_fname, spec_cfg['direct_method_priors'])
+#
+# # Run the sampler
+# chem_model.run()
+#
+# # Save the results
+# # chem_model.save_trace(trace_fname)
+#
+# # Show the results
+# chem_model.plot_trace()
+#
 
 # import pymc as pm
 # from pymc.progress_bar import ProgressBarManager

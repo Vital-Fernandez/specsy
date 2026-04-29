@@ -6,11 +6,11 @@ from pathlib import Path
 from lime.plotting.format import Themer
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
 from specsy import _setup_cfg
-from specsy.innate_old import load_inference_data
 from specsy.tools import linear_regression
 from specsy.io import SpecSyError
 from lime import load_cfg, Line, label_decomposition
 from specsy.plotting.bokeh_functions import update_bokeh_figure
+from innate import load_dataset
 
 try:
     from bokeh.plotting import figure, show, save
@@ -177,7 +177,8 @@ def plot_traces(fname, output_address=None, params_list=None, true_values=None, 
     display_check = True if in_fig is None else False
 
     # Load the inference data
-    infer_db = load_inference_data(fname)
+    # infer_db = load_inference_data(fname)
+    infer_db = load_dataset(fname)
 
     # Check for true values
     if true_values is None:

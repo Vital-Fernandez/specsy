@@ -2,9 +2,10 @@ import numpy as np
 import pymc as pm
 from pandas import unique
 from pytensor import tensor as tt
-from specsy.models.literature import _TEM_FUNC_DICT, _DEN_FUNC_DICT
 from arviz import to_netcdf
 
+from specsy.models.literature import _TEM_FUNC_DICT, _DEN_FUNC_DICT
+from lime.io import check_file_dataframe
 
 def storeValueInTensor(idx, value, tensor1D):
     return tt.inc_subtensor(tensor1D[idx], value)
@@ -269,3 +270,5 @@ def direct_method_multi_region(lines_df, emis_interp, prior_dict, fname=None):
         to_netcdf(trace, fname)
 
     return trace
+
+

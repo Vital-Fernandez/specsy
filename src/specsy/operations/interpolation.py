@@ -3,8 +3,7 @@ import numpy as np
 import pytensor.tensor as tt
 from pytensor import function as pt_function
 
-from ..io import load_HII_CHI_MISTRY_grid, label_decomposition
-
+from specsy.io import load_HII_CHI_MISTRY_grid
 
 
 def make_bilinear_interp(x_grid, y_grid, z_grid):

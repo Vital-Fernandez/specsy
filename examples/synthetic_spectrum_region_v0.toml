@@ -15,7 +15,7 @@ den_low   = 150.0
 den_med   = 350.0
 
 [synth_spectrum.lines]
-line_list = ["H1_4340A", "H1_6563A",
+line_list = ["H1_4340A", 'H1_4861A', "H1_6563A",
             "Ne3_3869A",
             "Ar3_7136A", "Ar3_7751A",
             "Ar4_4740A",
@@ -30,27 +30,18 @@ ref_line = 'H1_4861A'
 law = 'CCM89'
 R_V = 3.1
 
-[synth_spectrum.regions.r0]
-name      = "low"
-species   = ["H1", "S2", "S3", "O2", "N2"]
-temp_mode = "free"
-den_mode  = "free"
 
-[synth_spectrum.regions.r1]
-name      = "high"
-species   = ["O3", "Ar3", "Ar4", "Ne3"]
-temp_mode = "free"
-den_mode  = "tied"
-den_ref   = "low"
-#den_eq    = ""
+[default_ionization_structure]
+region.r0.name      = "low"
+region.r0.species   = ["H1", "S2", "S3", "O2", "N2"]
+region.r0.temp_mode = "free"
+region.r0.den_mode  = "free"
 
-#[synth_spectrum.regions.r0]
-#name      = "low"
-#species   = ["H1", "S2", "S3", "O2", "N2"]
-#temp_mode = "tied"
-#temp_ref  = 'high'
-#temp_eq   = 'TSIII_Hagele2006'
-#den_mode  = "free"
+region.r1.name      = "high"
+region.r1.species   = ["O3", "Ar3", "Ar4", "Ne3"]
+region.r1.temp_mode = "free"
+region.r1.den_mode  = "tied"
+region.r1.den_ref  = "low"
 
 [direct_method_priors]
 logParams_list = ["He1", "He2"]

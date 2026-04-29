@@ -1,19 +1,22 @@
 import logging
+import warnings
+from dataclasses import dataclass
+
 import numpy as np
-import lime
 import arviz as az
 import xarray as xr
+from lime import label_decomposition, Line, lines_frame, normalize_fluxes
 
-from pathlib import Path
-from pandas import DataFrame
-from lime import label_decomposition
+from innate import load_dataset
 
-from .. import _setup_cfg
-from ..operations.pytensors import EmissionFluxModel
-from ..tools import truncated_gaussian, flux_distribution
-from .chemistry_inference import direct_method_inference
-from .extinction import flambda_calc
-from ..innate_old import save_inference_data
+from specsy import _setup_cfg
+from specsy.io import SpecSyError
+from specsy.tools import truncated_gaussian, flux_distribution
+from specsy.operations.interpolation import compile_bilinear_interp
+from specsy.models.extinction import flambda_calc
+from specsy.models.literature import _TEM_FUNC_DICT, _DEN_FUNC_DICT
+from specsy.sampler import direct_method_multi_region, run_model
+from matplotlib import pyplot as plt
 
 try:
     import pyneb as pn
@@ -21,26 +24,8 @@ try:
 except ImportError:
     pyneb_check = False
 
-f_lambda_dict = {'Ne5_3426A': 0.39007327642328193, 'H1_3704A': 0.3140805693603108, 'O2_3726A_m': 0.3067768458982876, 'O2_3726A': 0.3067768458982876, 'O2_3729A': 0.3058662813859485, 'H1_3750A': 0.2989658287267065, 'H1_3771A': 0.2923988864345617, 'H1_3798A': 0.28376476642417625, 'H1_3835A': 0.27209526905153303, 'Ne3_3869A': 0.2618967220857926, 'H1_3889A': 0.2557809891273626, 'H1_3970A': 0.23198534354014377, 'He1_4026A': 0.21606552409784063, 'S2_4069A': 0.2043275716588584, 'H1_4102A': 0.19532246622634286, 'H1_4340A': 0.1345184866324025, 'O3_4363A': 0.12907397984854385, 'He1_4471A': 0.10008316812687346, 'Fe3_4658A': 0.05008559375773025, 'He2_4685A': 0.04306145401678374, 'Ar4_4711A': 0.03656608779554027, 'Ar4_4740A': 0.029353696058204592, 'H1_4861A': 0.0, 'He1_4922A': -0.01413318511741013, 'O3_4959A': -0.022588313009073047, 'O3_5007A': -0.03336167870361706, 'N2_5755A': -0.18418774041199926, 'He1_5876A': -0.20680077428006316, 'O1_6300A': -0.27936359987068493, 'S3_6312A': -0.28123411434673595, 'N2_6548A': -0.3173469917409416,
-                 'H1_6563A': -0.31952058255138915, 'N2_6583A': -0.32254097821555716, 'He1_6678A': -0.3361647881852353, 'S2_6716A': -0.3415641010661673, 'S2_6731A': -0.34357533413787533, 'He1_7065A': -0.3880517953849959, 'Ar3_7136A': -0.3969061757103082, 'O2_7319A_m': -0.41908454023400266, 'O2_7319A': -0.41908454023400266, 'O2_7330A': -0.42035048955048104, 'Ar3_7751A': -0.4672699048137039, 'H1_8392A': -0.5296236462812575, 'H1_8413A': -0.5314977585865324, 'H1_8438A': -0.5336928162672543, 'H1_8467A': -0.5362865949831361, 'H1_8502A': -0.5393816101427606, 'H1_8545A': -0.543116195197769, 'H1_8598A': -0.5476792555250717, 'H1_8665A': -0.5533353188659278, 'H1_8750A': -0.5604637553180236, 'H1_8863A': -0.5696232832294517, 'H1_9015A': -0.5816662195724203, 'S3_9068A': -0.5858209361879336, 'H1_9229A': -0.5979429077869078, 'S3_9530A': -0.6196286670577644, 'H1_9546A': -0.6206981718255229}
-
 
 _logger = logging.getLogger('SpecSy')
-
-
-def TSIII_from_TOIII_relation(T_high):
-    # From Hagele et al 2006
-    return (1.19 * T_high / 10000.0 - 0.32) * 10000.0
-
-
-# From Hagele et al 2006
-def TOIII_from_TSIII_relation(T_low):
-    return (0.8403 * T_low / 10000.0 + 0.2689) * 10000.0
-
-
-# From Epm and Cotini 2009
-def TOII_from_TOIII_relation(T_high, n_e):
-    return ((1.2 + 0.002*n_e + 4.2/n_e) / (10000.0/T_high + 0.08 + 0.003*n_e + 2.5/n_e)) * 10000.0
 
 
 def truncated_SII_density_dist(log=None, SII_lines=('S2_6716A', 'S2_6731A'), temp=10000, S2_pyneb=None, flux_dict=None,
@@ -141,17 +126,6 @@ def ratio_S23(flux_dict, S2_lines=('S2_6716A', 'S2_6731A'), S3_lines=('S3_9068A'
     return S_23
 
 
-def sulfur_diaz_2020(S_23):
-
-    n_steps = S_23.size
-    a_dist = np.random.normal(6.636, 0.010, size=n_steps)
-    b_dist = np.random.normal(2.202, 0.050, size=n_steps)
-    c_dist = np.random.normal(1.060, 0.098, size=n_steps)
-
-    SH = a_dist + b_dist * np.log10(S_23) + c_dist * np.square(np.log10(S_23))
-
-    return SH
-
 
 def sufur_diaz_2022(lines_log, S2_lines=('S2_6717A', 'S2_6731A'), S3_lines=('S3_9069A', 'S3_9532A'),
                     S2_norm="H1_6563A", S3_norm="H1_6563A", flux_column=f'line_int', n_steps=5000, temp=10000, den=100):
@@ -167,8 +141,8 @@ def sufur_diaz_2022(lines_log, S2_lines=('S2_6717A', 'S2_6731A'), S3_lines=('S3_
 
     # Compute the normalization emissivity
     H1 = pn.RecAtom('H', 1)
-    line_H_S2 = lime.Line(S2_norm)
-    line_H_S3 = lime.Line(S3_norm)
+    line_H_S2 = Line(S2_norm)
+    line_H_S3 = Line(S3_norm)
 
     # Theoretical emissivity
     Hbeta_emis = H1.getEmissivity(temp, den, wave=4861)
@@ -190,9 +164,6 @@ def sufur_diaz_2022(lines_log, S2_lines=('S2_6717A', 'S2_6731A'), S3_lines=('S3_
 
     return np.mean(S_H), np.std(S_H)
 
-
-
-METHODS_DICT = {'Hagele_2006': TSIII_from_TOIII_relation}
 
 
 def assign_temperature_diagnostic(line_list, diagnostic, temp_assign = True):
@@ -217,224 +188,256 @@ def assign_temperature_diagnostic(line_list, diagnostic, temp_assign = True):
     return diag_func
 
 
-class DmInputs:
+def review_model(emissivity_grid, prior_dict, temp_zones, verbose=True):
 
-    def __init__(self, lines_frame, lines_list=None, ext_frame='FRAME', R_v=None, extinction_law=None):
+    # Check that the lines are present in the dataframe
+    if emissivity_grid is not None:
+        lines_cand = np.array(list(emissivity_grid.keys()))
+        idcs = np.isin(self.lines, lines_cand)
+        if not np.all(idcs):
+            raise KeyError(f'- Missing lines from emissivity grid database: {self.lines[~idcs]}')
 
-        # Attributes
-        self.frame = None
-        self.lines = None
-        self.fluxes = None
-        self.errs = None
-        self.f_lambda = None
-        self.wave = None
-        self.particles = None
+    # Show the priors configuration
+    if verbose:
+        print(f'\n- Prior configuration')
+        for key, value in prior_dict.items():
+            print(f'-- {key.split("_prior")[0]}: {value}')
 
-        # Review the inputs
-        self.frame = lime.io.check_file_dataframe(lines_frame, DataFrame, ext=ext_frame)
+    # High ionization ions
+    if verbose:
+        print(f'\n- {len(temp_zones)} temperature zones model with:')
+        for temp, ions_array in temp_zones.items():
+            print(f'-- {temp}: {ions_array}')
 
-        # Crop to the target lines
-        if lines_list is not None:
-            idcs = self.frame.index.isin(lines_list)
-            self.frame = self.frame.loc[idcs]
-
-        # Declare the inputs
-        self.lines = self.frame.index.to_numpy()
-        self.particles = self.frame.particle.to_numpy()
-        self.fluxes = self.frame.line_flux.to_numpy()
-        self.errs = self.frame.line_flux_err.to_numpy()
-        self.wave = self.frame.wavelength.to_numpy()
-
-        # Compute the extinction # TODO normalization for multiple lines
-        # if pyneb_check:
-        #     norm_line = np.unique(self.frame.norm_line.to_numpy())[0]
-        #     line = lime.Line(norm_line)
-        #     self.f_lambda = flambda_calc(self.wave, R_v, extinction_law, line.wavelength)
-        # else:
-        #     self.f_lambda = np.zeros(self.lines.size)
-        #     for i, line in enumerate(self.lines):
-        #         self.f_lambda[i] = f_lambda_dict[line]
-
-        self.f_lambda = np.zeros(self.lines.size)
+    if verbose:
+        print(f'\n- Input fluxes: ')
         for i, line in enumerate(self.lines):
-            self.f_lambda[i] = f_lambda_dict[line]
+            print(f'-- {line} ({self.particles[i]}):'
+                  f'flux = {self.fluxes[i]:.4f} +/- {self.errs[i]:.4f} '
+                  f'|| err/flux = {100 * self.errs[i] / self.fluxes[i]:.2f} % '
+                  f'|| flambda = {self.f_lambda[i]:.3f}')
 
-        return
+    return
 
-    def review_model(self, emissivity_grid, prior_dict, temp_zones, verbose=True):
 
-        # Check that the lines are present in the dataframe
-        if emissivity_grid is not None:
-            lines_cand = np.array(list(emissivity_grid.keys()))
-            idcs = np.isin(self.lines, lines_cand)
-            if not np.all(idcs):
-                raise KeyError(f'- Missing lines from emissivity grid database: {self.lines[~idcs]}')
+def package_results(fname, inference_data, inputs=None, prior_dict=None, true_values=None):
 
-        # Show the priors configuration
-        if verbose:
-            print(f'\n- Prior configuration')
-            for key, value in prior_dict.items():
-                print(f'-- {key.split("_prior")[0]}: {value}')
+    # First save it just in case
+    az.to_netcdf(inference_data, fname)
 
-        # High ionization ions
-        if verbose:
-            print(f'\n- {len(temp_zones)} temperature zones model with:')
-            for temp, ions_array in temp_zones.items():
-                print(f'-- {temp}: {ions_array}')
+    # Recalibrate the fluxes
+    if "calcFluxes_Op" in inference_data.posterior:
+        inference_data.posterior['calcFluxes_Op'] = np.power(10, inference_data.posterior['calcFluxes_Op'])
 
-        if verbose:
-            print(f'\n- Input fluxes: ')
-            for i, line in enumerate(self.lines):
-                print(f'-- {line} ({self.particles[i]}):'
-                      f'flux = {self.fluxes[i]:.4f} +/- {self.errs[i]:.4f} '
-                      f'|| err/flux = {100 * self.errs[i] / self.fluxes[i]:.2f} % '
-                      f'|| flambda = {self.f_lambda[i]:.3f}')
+    # Remove the parametrization
+    if prior_dict is not None:
+        parameter_list = list(inference_data.posterior.data_vars)
+        for param in parameter_list:
+            if param in prior_dict:
 
-        return
+                # Recover the trace and parametrization
+                pos_xarr = inference_data.posterior[param]
+                reparam0, reparam1 = prior_dict[param][3], prior_dict[param][4]
 
-class DmFunctions():
-
-    def __init__(self, model):
-
-        # Instantiate the dependencies
-        # LineFitting.__init__(self)
-
-        # Lime spectrum object with the scientific data
-        self._model = model
-        self._i_iter = 0
-        self._n_iter = 0
-
-        self.output_path = None
-        self.label_fit = None
-
-        return
-
-    def frame(self, lines_frame, output_folder, results_label, lines_list=None, iter=2000, cores=4,
-              plots=('traces', 'posterior', 'sc_matrix'), verbose=True, true_values=None):
-
-        # Check output path
-        self.output_path, self.label_fit = Path(output_folder), results_label
-        assert self.output_path.is_dir(), f'- Directory "{output_folder}" does not exist'
-
-        # Prepare the input data for the fitting
-        inputs = DmInputs(lines_frame, lines_list, R_v=self._model.R_v, extinction_law=self._model.extinction_law)
-        inputs.review_model(self._model.emiss_grids, self._model.prior_conf, self._model.temp_zones, verbose)
-
-        # Prepare auxiliary parameters
-        idcs_highTemp_ions = np.isin(inputs.particles, self._model.temp_zones['high'])
-        lowTemp_check = assign_temperature_diagnostic(inputs.lines, self._model.temp_low_diag)
-        highTemp_check = assign_temperature_diagnostic(inputs.lines, self._model.temp_high_diag)
-
-        # Output file
-        fname = self.output_path/f'{self.label_fit}_inference_data.nc'
-        print(f'\n- Launching direct method inference: ')
-
-        # Recover the aproximation technique
-        approx_dict = self._model.emiss_grids.extract_approximation(technique='rgi')
-
-        # Run the model
-        infer_data = direct_method_inference(fname, inputs, prior_dict=self._model.prior_conf, idcs_highTemp_ions=idcs_highTemp_ions,
-                                            emiss_interp=approx_dict, eq_tt=self._model.eq_tt,
-                                            Tlow_diag=lowTemp_check, Thigh_diag=highTemp_check)
-
-        # Save the output data
-        output_db = self.output_path / f'{self.label_fit}_infer_db.nc'
-        print(f'-- Complete: saving the results at: {output_db}')
-        self.package_results(output_db, infer_data, inputs, self._model.prior_conf, true_values=true_values)
-
-        return
-
-    def package_results(self, fname, inference_data, inputs=None, prior_dict=None, true_values=None):
-
-        # First save it just in case
-        az.to_netcdf(inference_data, fname)
-
-        # Recalibrate the fluxes
-        if "calcFluxes_Op" in inference_data.posterior:
-            inference_data.posterior['calcFluxes_Op'] = np.power(10, inference_data.posterior['calcFluxes_Op'])
-
-        # Remove the parametrization
-        if prior_dict is not None:
-            parameter_list = list(inference_data.posterior.data_vars)
-            for param in parameter_list:
-                if param in prior_dict:
-
-                    # Recover the trace and parametrization
-                    pos_xarr = inference_data.posterior[param]
-                    reparam0, reparam1 = prior_dict[param][3], prior_dict[param][4]
-
-                    if 'logParams_list' in prior_dict:
-                        if param not in prior_dict['logParams_list']:
-                            pos_xarr = pos_xarr * reparam0 + reparam1
-                        else:
-                            pos_xarr = np.power(10, pos_xarr * reparam0 + reparam1)
-                    else:
+                if 'logParams_list' in prior_dict:
+                    if param not in prior_dict['logParams_list']:
                         pos_xarr = pos_xarr * reparam0 + reparam1
+                    else:
+                        pos_xarr = np.power(10, pos_xarr * reparam0 + reparam1)
+                else:
+                    pos_xarr = pos_xarr * reparam0 + reparam1
 
-                    # Reset the data
-                    inference_data.posterior[param] = pos_xarr
+                # Reset the data
+                inference_data.posterior[param] = pos_xarr
 
-        # Store the inputs in a custom group
-        if inputs is not None:
-            inputs_dict = {'fluxes': xr.DataArray(data=inputs.fluxes, dims=['labels'],
-                                                  coords={'labels': inputs.lines}, name='fluxes'),
-                           'errs': xr.DataArray(data=inputs.errs, dims=['labels'],
-                                                coords={'labels': inputs.lines}, name='errs')}
-        else:
-            inputs_dict = None
+    # Store the inputs in a custom group
+    if inputs is not None:
+        inputs_dict = {'fluxes': xr.DataArray(data=inputs.fluxes, dims=['labels'],
+                                              coords={'labels': inputs.lines}, name='fluxes'),
+                       'errs': xr.DataArray(data=inputs.errs, dims=['labels'],
+                                            coords={'labels': inputs.lines}, name='errs')}
+    else:
+        inputs_dict = None
 
-        # Add the true values if provided
-        if true_values is not None:
-            true_values_dict = {'magnitude': xr.DataArray(data=list(true_values.values()), dims=['parameters'],
-                                             coords={'parameters': list(true_values.keys())}, name='magnitude')}
-        else:
-            true_values_dict = None
+    # Add the true values if provided
+    if true_values is not None:
+        true_values_dict = {'magnitude': xr.DataArray(data=list(true_values.values()), dims=['parameters'],
+                                         coords={'parameters': list(true_values.keys())}, name='magnitude')}
+    else:
+        true_values_dict = None
 
-        # Save to a file
-        save_inference_data(fname, inference_data, inputs=inputs_dict, true_values=true_values_dict)
+    # Save to a file
+    save_inference_data(fname, inference_data, inputs=inputs_dict, true_values=true_values_dict)
 
-        return
+    return
+
+
+@dataclass
+class InputsDirectMethod:
+    labels: np.ndarray
+    flux_arr: np.ndarray
+    err_arr: np.ndarray
+    flambda_arr: np.ndarray
+    ion_arr: np.ndarray
+    temp_id_arr: np.ndarray
+    den_id_arr: np.ndarray
+    eq_tem_arr: np.ndarray
+    eq_den_arr: np.ndarray
 
 
 class DirectMethod:
 
-    def __init__(self, emiss_grids, R_v, extinction_law, min_err=0.02, temp_low_diag=None, temp_high_diag=None,
-                 temp_zones=None, den_zones=None, prior_cfg=None, tensor_model='pytensor'):
+    def __init__(self, lines_df, ion_struct):
 
-        # Declare the attributes
-        self.emiss_grids = None
-        self.candidate_lines = None
-        self.R_v = None
-        self.extinction_law = None
-        self.tensor_library = None
-        self.eq_tt = None
-        self.prior_conf = None
+        # Default prior cfg
+        self.prior_cfg = _setup_cfg['direct_method_priors']
 
-        # Extinction parameters
-        self.R_v = R_v
-        self.extinction_law = extinction_law
+        # Default emissivity
+        self.emis_interp = None
 
-        # Grid dictionary
-        self.emiss_grids = emiss_grids
+        # Containers for the emission lines
+        self._lines_frame = lines_df
+        self.lines_structure = None
 
-        # Compute flux equations as tensors
-        self.tensor_library = tensor_model
-        line_array = np.array(list(self.emiss_grids.keys()))
-        particle_array = lime.label_decomposition(line_array, params_list=['particle'])[0]
-        self.eq_tt = EmissionFluxModel(line_array, particle_array)
+        # Load lines data
+        self.norm_line = None
+        self.ion_struct = ion_struct
 
-        # Get the prior configuration
-        self.prior_conf = prior_cfg if prior_cfg is not None else _setup_cfg['direct_method_priors']
+        # Data attributes
+        self.model = None
+        self.trace = None
+        self.inputs = None
 
-        # If temps zones is None
-        self.temp_zones = temp_zones if temp_zones is not None else _setup_cfg["direct_method_cfg"]['temp_zones']
+        return
 
-        # If temps zones is None
-        self.temp_low_diag = temp_low_diag if temp_low_diag is not None else _setup_cfg["direct_method_cfg"]['temp_low_diag']
-        self.temp_high_diag = temp_high_diag if temp_high_diag is not None else _setup_cfg["direct_method_cfg"]['temp_high_diag']
-        self.temp_low_diag, self.temp_high_diag = np.atleast_1d(self.temp_low_diag), np.atleast_1d(self.temp_high_diag)
+    def prepare_inputs(self, emissivity_source=None, prior_cfg=None, R_V=3.1, law='G03 LMC',
+                       norm_list='H1_4861A', normalize_flux=True, line_list=None, flux_column='profile_flux'):
 
-        # Declare the function methods
-        self.fit = DmFunctions(self)
+        # Check the lines frame and normalization line
+        if self._lines_frame is None:
+            raise SpecSyError(f'The object does not have a lines_frame declared')
+
+        self.norm_line = norm_list
+        if self.norm_line not in self._lines_frame.index:
+            raise SpecSyError(f'The normalization line "{self.norm_line}" is not in the input lines frame')
+
+        # Prepare the emissivity interpolator
+        emis_dataset = load_dataset(emissivity_source)
+        self.emis_interp = compile_bilinear_interp(emis_dataset)
+
+        # Prepare the prior cfg
+        self.prior_cfg = self.prior_cfg if prior_cfg is None else prior_cfg
+
+        # Make a copy of the frame and normalize the fluxes
+        if normalize_flux:
+            self.lines_structure = normalize_fluxes(self._lines_frame.copy(), line_list=line_list, norm_list=norm_list, flux_column=flux_column, clear_empty=True)
+        else:
+            self.lines_structure = self._lines_frame.copy()
+
+        # Compute the reddening law
+        flambda_arr = flambda_calc(self.lines_structure.wavelength, R_V, law, self.lines_structure.loc['H1_4861A'].wavelength)
+        self.lines_structure.insert(3, 'f_lambda', flambda_arr)
+
+        # Map the target lines to the ionization structure
+        self.lines_structure = self.ion_struct.map_line_structure(self.lines_structure, norm_line=self.norm_line)
+
+        # Check for issues
+        self._review_inputs()
+
+        return
+
+    def _review_inputs(self):
+
+        errors = []
+        no_dash = self.lines_structure['region'] != '-'
+
+        # 1) region must not be '-'
+        bad = self.lines_structure.index[~no_dash].tolist()
+        if bad:
+            errors.append(f"The following lines do not have a region defined: {bad}")
+
+        # 2) for non-'-' region rows, 'temp' and 'den' must not be '-'
+        sub = self.lines_structure[no_dash]
+        for col in ('temp', 'den'):
+            bad = sub.index[sub[col] == '-'].tolist()
+            if bad:
+                errors.append(f"'{col}' is '-' for non-'-' region rows at lines: {bad}")
+
+        # 3) eq_temp / eq_den values must be keys in their respective dicts
+        for col, d in (('eq_temp', _TEM_FUNC_DICT), ('eq_den', _DEN_FUNC_DICT)):
+            mask = self.lines_structure[col] != '-'
+            bad = self.lines_structure.index[mask & ~self.lines_structure[col].isin(d)].tolist()
+            if bad:
+                errors.append(f"'{col}' has unrecognised values at lines: {bad}")
+
+        # 4) each particle must map to a unique region
+        dup = self.lines_structure.groupby('particle')['region'].nunique()
+        bad = dup.index[dup > 1].tolist()
+        if bad:
+            detail = {p: self.lines_structure.loc[self.lines_structure['particle'] == p, 'region'].unique().tolist() for p in bad}
+            errors.append(f"'particle' maps to multiple regions: {detail}")
+
+        # 5) Check if we have emissivity data
+        bad = [idx for idx in self.lines_structure.index if idx not in self.emis_interp]
+        if bad:
+            errors.append(f"Line emissivity not available in the input file: {bad}")
+
+        if errors:
+            msg = "lines_structure validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
+            warnings.warn(msg)
+            raise ValueError(msg)
+
+    def run(self):
+
+        # Line inputs the data
+        input_lines = self.lines_structure.index.to_numpy()
+        input_flux = self.lines_structure.line_flux.to_numpy()
+        input_err = self.lines_structure.line_flux_err.to_numpy()
+
+        # Unpack physical parameters
+        flambda_arr = self.lines_structure.f_lambda.to_numpy()
+        ion_arr = self.lines_structure.particle.to_numpy()
+
+        # Unpack the temp/den structure arrays
+        temp_id_arr = self.lines_structure.temp.to_numpy()
+        den_id_arr = self.lines_structure.den.to_numpy()
+        tem_eq_arr = self.lines_structure.eq_temp.to_numpy()
+        den_eq_arr = self.lines_structure.eq_den.to_numpy()
+
+        # Inputs object
+        print(f'Multi-region direct method sampler')
+        print(f'- Readying inputs:')
+        self.inputs = InputsDirectMethod(input_lines, input_flux, input_err, flambda_arr, ion_arr,
+                                         temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr)
+
+        # Create the model
+        print(f'- Compiling model:')
+        self.model = direct_method_multi_region(inputs=self.inputs, emis_interp=self.emis_interp, prior_dict=self.prior_cfg,
+                                                tem_EQDB=_TEM_FUNC_DICT, den_EQDB=_DEN_FUNC_DICT)
+
+        # Run the model
+        print(f'- Launching sampler:')
+        self.trace = run_model(self.model)
+
+        return
+
+    def save_trace(self, fname):
+
+        # Save with arviz formating
+        az.to_netcdf(self.trace, fname)
+        # results_dict = pack_results(fname)
+        # save_dataset(fname, results_dict)
+
+        return
+
+    def plot_trace(self, var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "cHBeta", "den_low", "temp_low",
+                                      "temp_high"]):
+        # var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "Ar4", "Ne3", "cHBeta", "den_low", "temp_low",
+        #              "temp_high"]
+        az.plot_pair(self.trace, var_names=var_names, divergences=True)
+        az.plot_posterior(self.trace, var_names=var_names)
+        summary = az.summary(self.trace, var_names=var_names)
+        print(summary)
+        plt.show()
 
         return

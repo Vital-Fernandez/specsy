@@ -2,12 +2,6 @@ import os
 import numpy as np
 import configparser
 from pathlib import Path
-
-import pandas as pd
-
-from lime.transitions import label_decomposition
-import lime
-from lime.io import load_cfg, save_cfg, save_frame, check_file_dataframe, check_fit_conf
 from collections.abc import Sequence
 from astropy.io import fits
 from innate import load_dataset
@@ -26,28 +20,6 @@ FITS_OUTPUTS_EXTENSION = {'parameter_list': '20A',
 class SpecSyError(Exception):
     """SpecSy exception function"""
 
-
-# Load log
-def load_frame(file_address, page: str ='LINELOG', sample_levels: list =['id', 'line'], flux_type=None, lines_list=None,
-               norm_line=None):
-
-    # Return
-    if isinstance(file_address, pd.DataFrame):
-        log = file_address.copy()
-    else:
-        log = lime.load_frame(file_address, page, sample_levels)
-
-    extra_column = 'line_extract' if norm_line is not None else 'line_flux'
-
-    # Create new column for the lines flux with the requested type (None for user to introduce "line_flux")
-    if flux_type is not None:
-        lime.tools.extract_fluxes(log, flux_type=flux_type, column_name=extra_column)
-
-    # Check for requested lines and their normalization
-    if norm_line is not None:
-        lime.tools.normalize_fluxes(log, lines_list, norm_line, flux_column=extra_column, column_name='line_flux')
-
-    return log
 
 
 def load_HII_CHI_MISTRY_grid(log_scale=False, log_zero_value = -1000):
@@ -285,7 +257,7 @@ def fits_db(fits_address, model_db, ext_name='', header=None):
     return
 
 
-def save_trace(trace, prior_dict, line_labels, input_fluxes, input_err, inference_model):
+def pack_results(trace, prior_dict, line_labels, input_fluxes, input_err, inference_model):
 
     #  ---------------------------- Treat traces and store outputs
     model_params = []

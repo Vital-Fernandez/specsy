@@ -1,6 +1,7 @@
 [metadata]
 name = 'specsy'
-version = "0.8.0"
+version = "0.9.dev1"
+
 
 [direct_method_cfg]
 temp_zones.high = ["He1", "He2", "O3", "Ar4", "Ne3", "Cl4", "C3"]
@@ -16,7 +17,7 @@ logParams_list = ["He1", "He2"]
 T_low = ["Normal",15000.0,5000.0,1.0,0.0]
 T_high = ["Normal",15000.0,5000.0,1.0,0.0]
 n_e = ["HalfCauchy",2.0,0.0,200.0,0.0]
-cHbeta = ["HalfCauchy", 2.0, 0.0, 1.0, 0.0]
+cHBeta = ["HalfCauchy", 2.0, 0.0, 1.0, 0.0]
 tau = ["Lognormal",0,1.0,1.0,0.0]
 Ar3 = ["Normal",5.0,5.0,1.0,0.0]
 Ar4 = ["Normal",5.0,5.0,1.0,0.0]

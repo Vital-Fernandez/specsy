@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-from scipy.optimize import curve_fit
 
 try:
     import pyneb as pn
@@ -8,16 +7,12 @@ try:
 except ImportError:
     pyneb_check = False
 
-from pandas import DataFrame
 from lime import label_decomposition
 from lime.io import check_file_dataframe
-from pathlib import Path
-from lime.io import load_frame
 from uncertainties import unumpy, ufloat
-from lmfit.models import LinearModel
 from specsy.plotting.plots import extinction_gradient
 from specsy.tools import get_mixed_fluxes, linear_regression
-from specsy.io import SpecSyError, check_file_dataframe
+from specsy.io import SpecSyError
 
 _logger = logging.getLogger('SpecSy')
 
