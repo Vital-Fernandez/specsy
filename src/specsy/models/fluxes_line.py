@@ -1,4 +1,23 @@
-from pytensor import tensor as tt, function
+import pytensor
+
+
+def H1_flux(abund, emis, flambda, cHbeta):
+    return emis - flambda * cHbeta
+
+
+def helium_flux(abund, emis, flambda, cHbeta):
+    return abund + emis - flambda * cHbeta
+
+
+def metals_flux(abund, emis, flambda, cHbeta):
+    return abund + emis - flambda * cHbeta - 12
+
+
+FLUX_EQUATION_DICT = {'hydrogen':   H1_flux,
+                      'helium':     helium_flux,
+                      'metals':     metals_flux}
+
+DEFAULT_PARTICLE_EQUATIONS_KEYS = {'H1': 'hydrogen', 'He1': 'helium', 'He2': 'helium'}
 
 
 class EmissionFluxModel:
@@ -80,9 +99,9 @@ class EmissionFluxModel:
         return abund + emis_ratio - flambda * cHbeta - 12
 
     def ion_O2_7319A_b_flux_log(self, emis_ratio, cHbeta, flambda, abund, ftau, O3, T_high):
-        col_ext = tt.power(10, abund + emis_ratio - flambda * cHbeta - 12)
-        recomb = tt.power(10, O3 + 0.9712758 + tt.log10(tt.power(T_high/10000.0, 0.44)) - flambda * cHbeta - 12)
-        return tt.log10(col_ext + recomb)
+        col_ext = pytensor.tensor.power(10, abund + emis_ratio - flambda * cHbeta - 12)
+        recomb = pytensor.tensor.power(10, O3 + 0.9712758 + pytensor.tensor.log10(pytensor.tensor.power(T_high / 10000.0, 0.44)) - flambda * cHbeta - 12)
+        return pytensor.tensor.log10(col_ext + recomb)
 
 
 class EmissionTensors(EmissionFluxModel):
@@ -100,9 +119,9 @@ class EmissionTensors(EmissionFluxModel):
 
         # Compile the theano functions for all the input emission lines
         for label, func in self.emFluxEqDict.items():
-            func_params = tt.dscalars(self.emFluxParamDict[label])
-            self.emFluxEqDict[label] = function(inputs=func_params, outputs=func(*func_params),
-                                                on_unused_input='ignore')
+            func_params = pytensor.tensor.dscalars(self.emFluxParamDict[label])
+            self.emFluxEqDict[label] = pytensor.function(inputs=func_params, outputs=func(*func_params),
+                                                         on_unused_input='ignore')
 
         # Assign function dictionary with flexible arguments
         self.assign_flux_eqtt()

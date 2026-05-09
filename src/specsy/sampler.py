@@ -1,6 +1,8 @@
 import pymc as pm
 import numpy as np
+import nutpie
 from pytensor import tensor as tt
+from specsy.models.fluxes_line import FLUX_EQUATION_DICT
 
 
 def set_prior(param, prior_dict, abund_type=False, name_param=None):
@@ -51,6 +53,7 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
     den_id_arr = inputs.den_id_arr
     eq_tem_arr = inputs.eq_tem_arr
     eq_den_arr = inputs.eq_den_arr
+    eq_flux_arr = inputs.eq_flux_arr
 
     # Convenience arrays
     range_arr = np.arange(labels_arr.size)
@@ -62,6 +65,10 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
     # PyMC model
     with (pm.Model(coords={"lines": labels_arr}) as model):
 
+        # Save input fluxes
+        pm.Data('input_flux', inputs.flux_arr, dims='lines')
+        pm.Data('input_err', inputs.err_arr, dims='lines')
+
         # Container to store the models
         theo_flux = tt.zeros(labels_arr.size)
 
@@ -69,9 +76,9 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
         for ion in unique_species:
             if ion != 'H1':
                 set_prior(ion, prior_dict, abund_type=True, name_param=ion)
+        pm.Data('H1', 1.0)
 
         # Extinction
-        # cHbeta = pm.HalfCauchy(name="cHBeta", beta=2)
         cHbeta = set_prior('cHBeta', prior_dict)
 
         # Generate the free temperatures and densities
@@ -86,14 +93,13 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
             den = model[den_id_arr[i]] if den_eq_check[i] else den_EQDB[eq_den_arr[i]](model[den_id_arr[i]])
             emis = emis_interp[labels_arr[i]](tem, den)
 
-            if ion_arr[i] == 'H1':
-                flux = emis - flambda_arr[i] * cHbeta
-            else:
-                flux = model[ion_arr[i]] + emis - flambda_arr[i] * cHbeta - 12
+            # Compute the flux
+            flux = FLUX_EQUATION_DICT[eq_flux_arr[i]](abund=model[ion_arr[i]], emis=emis,
+                                                      flambda=flambda_arr[i], cHbeta=cHbeta)
 
             theo_flux = tt.inc_subtensor(theo_flux[i], flux)
 
-        # Stored the fluxes
+        # Stored the fluxes and input fluxes, uncertainty
         pm.Deterministic('theo_flux', theo_flux)
 
         # Likelihood
@@ -101,9 +107,15 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
 
     return model
 
-def run_model(model, draws=1000, tune=2000, target_accept=0.9, chains=8, cores=8, nuts_sampler='numpyro'):
+
+def run_model(model, draws=1000, tune=2000, target_accept=0.8, chains=8, cores=8, nuts_sampler='numpyro',
+              callback=None):
+
+    nuts_sampler_kwargs = None if nuts_sampler != 'nutpie' else {"backend": "jax", 'gradient_backend': "jax"}
 
     with model:
-        trace = pm.sample(draws=draws, tune=tune, target_accept=target_accept, chains=chains, cores=cores, nuts_sampler=nuts_sampler)
+        trace = pm.sample(draws=draws, tune=tune, target_accept=target_accept, chains=chains, cores=cores,
+                          nuts_sampler=nuts_sampler, callback=callback, progressbar='combined',
+                          nuts_sampler_kwargs=nuts_sampler_kwargs)
 
     return trace

@@ -1,15 +1,15 @@
+import lime
 import numpy as np
+import arviz as az
 
 from lime.plotting.plots import save_close_fig_swicth
-from lime.plotting.format import  Themer as Themer_Lime, latex_science_float, theme
 from pathlib import Path
 from lime.plotting.format import Themer
 from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
 from specsy import _setup_cfg
 from specsy.tools import linear_regression
-from specsy.io import SpecSyError
+from specsy.io import SpecSyError, specsy_cfg
 from lime import load_cfg, Line, label_decomposition
-from specsy.plotting.bokeh_functions import update_bokeh_figure
 from innate import load_dataset
 
 try:
@@ -22,8 +22,9 @@ except ImportError:
 import corner
 
 
-theme = Themer(load_cfg(Path(__file__).parent/'specsy_theme.toml', fit_cfg_suffix=None))
-
+# Formatting object
+theme_file = Path(__file__).resolve().parent/'specsy_theme.toml'
+theme = Themer.from_toml(theme_file)
 
 def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, fig_cfg=None, ax_cfg=None, return_fig=False):
 
@@ -398,7 +399,7 @@ def plot_flux_grid(fname, output_address=None, line_list=None, obs_values=None, 
 
 
 def plot_corner_matrix(fname, output_address=None, params_list=None, true_values=None, in_fig=None, fig_cfg=None,
-                       ax_cfg=None, maximize=False):
+                      ax_cfg=None, maximize=False):
 
     # Display check for the user figures
     display_check = True if in_fig is None else False
@@ -486,3 +487,183 @@ def plot_corner_matrix(fname, output_address=None, params_list=None, true_values
     # plt.close(fig)
 
     return in_fig
+
+def az_trace(sampling_result, fname=None, in_fig=None, var_list=None, exclude=['theo_flux'], var_latex=specsy_cfg['latex_param_notation'],
+             fig_cfg=None, maximize=False, display_check=True):
+
+    if isinstance(sampling_result, (str, Path)):
+        trace = az.from_netcdf(sampling_result)
+    else:
+        trace = sampling_result
+
+    # Check the lines to plot
+    if var_list is None:
+        var_list = list(trace.posterior.data_vars)
+
+    # Remove the fluxes
+    if exclude is not None:
+        var_list = list(set(var_list) - set(exclude))
+
+    # Sort alphabetically and generate the latex notation
+    var_list.sort()
+    latex_list = None if var_latex is None else [var_latex.get(var, var) for var in var_list]
+
+    mapped_variables = az.labels.MapLabeller(var_name_map=dict(zip(var_list, latex_list)))
+
+    # Set the plot format where the user's overwrites the default
+    size_conf = {'figure.figsize': (6, len(var_list) * 2),
+                 'axes.prop_cycle': plt.cycler(color=[theme.colors['fg']]),
+                 'axes.titlesize': 16, 'axes.titlepad': 10}
+    size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
+
+    plot_cfg = theme.fig_defaults(size_conf, fig_type='traces')
+    print(plot_cfg)
+
+    with rc_context(plot_cfg):
+
+        # Arviz function
+        az.plot_trace(trace, var_names=var_list, combined=True, labeller=mapped_variables)
+        plt.subplots_adjust(hspace=0.8)
+
+        # Display | saving logic
+        in_fig = save_close_fig_swicth(fname, 'tight', in_fig, maximize, display_check)
+
+
+
+
+    return
+
+
+def az_scatter_matrix(sampling_result, fname=None, in_fig=None, var_list=None, exclude=['theo_flux'], var_latex=specsy_cfg['latex_param_notation'],
+             fig_cfg=None, maximize=False, display_check=True, n_cols=5):
+
+    if isinstance(sampling_result, (str, Path)):
+        trace = az.from_netcdf(sampling_result)
+    else:
+        trace = sampling_result
+
+    # Check the lines to plot
+    if var_list is None:
+        var_list = list(trace.posterior.data_vars)
+
+    # Remove the fluxes
+    if exclude is not None:
+        var_list = list(set(var_list) - set(exclude))
+
+    # Sort alphabetically and generate the latex notation
+    var_list.sort(reverse=True)
+    latex_list = None if var_latex is None else [var_latex.get(var, var) for var in var_list]
+
+    mapped_variables = az.labels.MapLabeller(var_name_map=dict(zip(var_list, latex_list)))
+
+    # Set the plot format where the user's overwrites the default
+    # size_conf = {'figure.figsize': (6, len(var_list) * 2),
+    #              'axes.prop_cycle': plt.cycler(color=[theme.colors['fg']]),
+    #              'axes.titlesize': 16, 'axes.titlepad': 10}
+    size_conf = {}
+    size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
+
+    plot_cfg = theme.fig_defaults(size_conf, fig_type='traces')
+
+
+    with rc_context(plot_cfg):
+
+        # Arviz function
+        az.plot_pair(trace, var_names=var_list, kind='kde', labeller=mapped_variables)
+
+        # Display | saving logic
+        in_fig = save_close_fig_swicth(fname, 'tight', in_fig, maximize, display_check)
+
+    return
+
+
+def az_flux_grid(sampling_result, fname=None, n_cols=5, fig_cfg=None, in_fig=None,  maximize=False,
+                 display_check=True):
+
+    if isinstance(sampling_result, (str, Path)):
+        trace = az.from_netcdf(sampling_result)
+    else:
+        trace = sampling_result
+
+    if 'theo_flux' not in list(trace.posterior.data_vars):
+        raise SpecSyError(f'The input trace does not include the "theo_flux" grid')
+
+    # Unpack the flux posterior data
+    labels_arr = trace.observed_data['lines'].values
+    obs_flux_arr = trace.constant_data['input_flux'].values
+    obs_err_arr = trace.constant_data['input_err'].values
+    theo_grid = trace.posterior['theo_flux'].values
+
+    # Get the ionic species
+    line_list = lime.Line.from_list(labels_arr)
+    ion_list = [line.particle.label for line in line_list]
+    ion_list = np.unique(ion_list)
+
+    # Declare plot grid size
+    n_lines = theo_grid.shape[2]
+    n_rows = int(np.ceil(float(n_lines)/float(n_cols)))
+    n_cells = n_rows * n_cols
+
+    # Set the plot format where the user's overwrites the default
+    size_conf = {'figure.figsize': (n_cols*2, n_rows*2)}
+    size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
+
+    plot_cfg = theme.fig_defaults(size_conf, fig_type='flux_grid')
+
+    # Initialize the figure
+    with (rc_context(plot_cfg)):
+
+        # Generate the color dict
+        colorNorm = colors.Normalize(0, ion_list.size)
+        cmap = cm.get_cmap(name=theme.colors['mask_map'])
+        color_dict = dict(zip(ion_list, np.arange(ion_list.size)))
+
+        # self.FigConf(plotSize=size_dict, Figtype='Grid', n_columns=n_columns, n_rows=n_rows)
+        if in_fig is None:
+            in_fig = plt.figure()
+
+        axes = in_fig.subplots(n_rows, n_cols)
+        axes = axes.ravel()
+
+        # Plot individual traces
+        for i in range(n_cells):
+
+            if i < n_lines:
+
+                # Current line
+                label, ion = line_list[i].label, line_list[i].particle.label
+                ion_color = cmap(colorNorm(color_dict[ion]))
+
+                # Plot histogram
+                trace = theo_grid[:, :, i].reshape(-1)
+                axes[i].hist(trace, histtype='stepfilled', bins=35, alpha=.7, color=ion_color, density=False)
+
+                # Plot observed flux
+                if obs_flux_arr is not None:
+                    inFlux, inErr = obs_flux_arr[i], obs_err_arr[i]
+                    axes[i].axvline(x=inFlux, color=theme.colors['fg'], linestyle='solid')
+                    axes[i].axvspan(inFlux - inErr, inFlux + inErr, alpha=0.2, edgecolor=theme.colors['fg'],
+                                    linewidth=1.5, linestyle=':', color=theme.colors['fg'])
+
+                # Plot formating
+                axes[i].get_yaxis().set_visible(False)
+                axes[i].set_yticks([])
+                axes[i].set_title(label)
+
+            else:
+                in_fig.delaxes(axes[i])
+
+        # Bigger head spaces
+        plt.subplots_adjust(hspace=0.5)
+
+        # Show or save the image
+        in_fig = save_close_fig_swicth(fname, 'tight', in_fig, maximize, display_check)
+
+    return
+
+    # # Set the plot format where the user's overwrites the default
+    # size_conf = {'figure.figsize': (6, len(var_list) * 2),
+    #              'axes.prop_cycle': plt.cycler(color=[theme.colors['fg']]),
+    #              'axes.titlesize': 16, 'axes.titlepad': 10}
+    # size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
+

@@ -22,7 +22,6 @@ default."cont_width" = '0.5'
 default."spectrum_width" = '0.75'
 default."textsize_notes" = 4
 
-
 [bokeh.size] # Figure elements size
 default."single_width" = '1'
 default."comp_width" = '0.75'
@@ -73,9 +72,21 @@ legend.background_fill_alpha = 0.2
 "xtick.labelsize" = 8
 
 [matplotlib.figure.flux_grid] # Individual figure format
-'axes.titlesize' = 14
+'axes.titlesize' = 10
 'xtick.labelsize' = 8
 'ytick.labelsize' = 3
+
+[bokeh.figure.trace_plot] # Individual figure format
+'width' = 400
+'height' = 200
+
+[bokeh.figure.scatter_matrix] # Individual figure format
+'width' = 150
+'height' = 150
+
+[bokeh.figure.flux_grid] # Individual figure format
+'width' = 200
+'height' = 200
 
 [colors.default] # Default theme
 bg = '#FFFFFF'

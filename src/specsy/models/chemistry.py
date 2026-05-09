@@ -2,6 +2,7 @@ import logging
 import warnings
 from dataclasses import dataclass
 
+import lime
 import numpy as np
 import arviz as az
 import xarray as xr
@@ -9,12 +10,12 @@ from lime import label_decomposition, Line, lines_frame, normalize_fluxes
 
 from innate import load_dataset
 
-from specsy import _setup_cfg
-from specsy.io import SpecSyError
+from specsy.io import SpecSyError, specsy_cfg
 from specsy.tools import truncated_gaussian, flux_distribution
 from specsy.operations.interpolation import compile_bilinear_interp
 from specsy.models.extinction import flambda_calc
 from specsy.models.literature import _TEM_FUNC_DICT, _DEN_FUNC_DICT
+from specsy.models.fluxes_line import DEFAULT_PARTICLE_EQUATIONS_KEYS, FLUX_EQUATION_DICT
 from specsy.sampler import direct_method_multi_region, run_model
 from matplotlib import pyplot as plt
 
@@ -272,17 +273,52 @@ def package_results(fname, inference_data, inputs=None, prior_dict=None, true_va
     return
 
 
-@dataclass
 class InputsDirectMethod:
-    labels: np.ndarray
-    flux_arr: np.ndarray
-    err_arr: np.ndarray
-    flambda_arr: np.ndarray
-    ion_arr: np.ndarray
-    temp_id_arr: np.ndarray
-    den_id_arr: np.ndarray
-    eq_tem_arr: np.ndarray
-    eq_den_arr: np.ndarray
+
+    def __init__(self, input_lines, input_flux, input_err, flambda_arr, ion_arr,
+                 temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr, eq_flux_arr,):
+
+        self.labels  = input_lines
+        self.flux_arr   = input_flux
+        self.err_arr    = input_err
+        self.flambda_arr  = flambda_arr
+        self.ion_arr      = ion_arr
+        self.temp_id_arr  = temp_id_arr
+        self.den_id_arr   = den_id_arr
+        self.eq_tem_arr   = tem_eq_arr
+        self.eq_den_arr   = den_eq_arr
+        self.eq_flux_arr   = eq_flux_arr
+
+    @classmethod
+    def from_dataframe(cls, lines_structure):
+
+        # Remove normalization line
+        if 'norm_line' in lines_structure.columns:
+            idcs = ~lines_structure.index.isin(lines_structure['norm_line'].unique())
+        else:
+            idcs = np.ones(lines_structure.index.size).astype(bool)
+
+        # Line inputs the data
+        input_lines = lines_structure.loc[idcs].index.to_numpy()
+        input_flux  = lines_structure.loc[idcs].line_flux.to_numpy()
+        input_err   = lines_structure.loc[idcs].line_flux_err.to_numpy()
+
+        # Unpack physical parameters
+        flambda_arr = lines_structure.loc[idcs].f_lambda.to_numpy()
+        ion_arr     = lines_structure.loc[idcs].particle.to_numpy()
+
+        # Unpack the temp/den structure arrays
+        temp_id_arr = lines_structure.loc[idcs].temp.to_numpy()
+        den_id_arr  = lines_structure.loc[idcs].den.to_numpy()
+        tem_eq_arr  = lines_structure.loc[idcs].eq_temp.to_numpy()
+        den_eq_arr  = lines_structure.loc[idcs].eq_den.to_numpy()
+        eq_flux_arr  = lines_structure.loc[idcs].eq_flux.to_numpy()
+
+        print(f'Multi-region direct method sampler')
+        print(f'- Readying inputs:')
+
+        return cls(input_lines, input_flux, input_err, flambda_arr, ion_arr,
+                   temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr, eq_flux_arr)
 
 
 class DirectMethod:
@@ -290,7 +326,7 @@ class DirectMethod:
     def __init__(self, lines_df, ion_struct):
 
         # Default prior cfg
-        self.prior_cfg = _setup_cfg['direct_method_priors']
+        self.prior_cfg = specsy_cfg['direct_method_priors']
 
         # Default emissivity
         self.emis_interp = None
@@ -310,14 +346,15 @@ class DirectMethod:
 
         return
 
-    def prepare_inputs(self, emissivity_source=None, prior_cfg=None, R_V=3.1, law='G03 LMC',
-                       norm_list='H1_4861A', normalize_flux=True, line_list=None, flux_column='profile_flux'):
+    def prepare_inputs(self, line_list=None, emissivity_source=None, prior_cfg=None, kinematic_component=0,
+                       R_V=3.1, law='G03 LMC', norm_line='H1_4861A', normalize_flux=True, flux_column='profile_flux',
+                       review_model=True):
 
         # Check the lines frame and normalization line
         if self._lines_frame is None:
             raise SpecSyError(f'The object does not have a lines_frame declared')
 
-        self.norm_line = norm_list
+        self.norm_line = norm_line
         if self.norm_line not in self._lines_frame.index:
             raise SpecSyError(f'The normalization line "{self.norm_line}" is not in the input lines frame')
 
@@ -328,25 +365,47 @@ class DirectMethod:
         # Prepare the prior cfg
         self.prior_cfg = self.prior_cfg if prior_cfg is None else prior_cfg
 
+        # Select the lines
+        if line_list is None:
+            self.lines_structure = self._lines_frame.copy()
+        else:
+            self.lines_structure = self._lines_frame.loc[self._lines_frame.index.isin(line_list)].copy()
+
+        # Remove the kinematic components
+        if kinematic_component == 0:
+            idcs_kinem = ~self.lines_structure.index.str.contains('_k-')
+        else:
+            idcs_kinem = self.lines_structure.index.contains(f'_k-{kinematic_component}')
+        self.lines_structure = self.lines_structure.loc[idcs_kinem]
+
         # Make a copy of the frame and normalize the fluxes
         if normalize_flux:
-            self.lines_structure = normalize_fluxes(self._lines_frame.copy(), line_list=line_list, norm_list=norm_list, flux_column=flux_column, clear_empty=True)
+            self.lines_structure = normalize_fluxes(self.lines_structure, norm_list=norm_line, flux_column=flux_column,
+                                                    clear_empty=True)
         else:
-            self.lines_structure = self._lines_frame.copy()
+            self.lines_structure.insert(3, 'norm_line', self.norm_line)
 
         # Compute the reddening law
         flambda_arr = flambda_calc(self.lines_structure.wavelength, R_V, law, self.lines_structure.loc['H1_4861A'].wavelength)
-        self.lines_structure.insert(3, 'f_lambda', flambda_arr)
+        self.lines_structure.insert(4, 'f_lambda', flambda_arr)
 
         # Map the target lines to the ionization structure
-        self.lines_structure = self.ion_struct.map_line_structure(self.lines_structure, norm_line=self.norm_line)
+        self.lines_structure = self.ion_struct.map_line_structure(self.lines_structure)
+
+        # Add the equations per ion
+        if 'eq_flux' not in self.lines_structure.columns:
+            self.lines_structure.insert(9, 'eq_flux', '-')
+        for line_label in self.lines_structure.index:
+            eq_name = DEFAULT_PARTICLE_EQUATIONS_KEYS.get(self.lines_structure.at[line_label, 'particle'], 'metals')
+            self.lines_structure.loc[line_label, 'eq_flux'] = eq_name
 
         # Check for issues
-        self._review_inputs()
+        if review_model:
+            self._review_inputs()
 
         return
 
-    def _review_inputs(self):
+    def _review_inputs(self, return_message=False):
 
         errors = []
         no_dash = self.lines_structure['region'] != '-'
@@ -380,35 +439,30 @@ class DirectMethod:
         # 5) Check if we have emissivity data
         bad = [idx for idx in self.lines_structure.index if idx not in self.emis_interp]
         if bad:
-            errors.append(f"Line emissivity not available in the input file: {bad}")
+            errors.append(f"Line emissivity for transitions: {bad}")
 
-        if errors:
-            msg = "lines_structure validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
-            warnings.warn(msg)
-            raise ValueError(msg)
+        # 6) Check the flux equation is recognized
+        eq_flux_names = self.lines_structure.eq_flux.unique()
+        bad = [eq_name for eq_name in eq_flux_names if eq_name not in FLUX_EQUATION_DICT]
+        if bad:
+            errors.append(f"Flux equation not available in database for: {bad}")
 
-    def run(self):
+        if not return_message:
+            if errors:
+                msg = "lines_structure validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
+                warnings.warn(msg)
+                raise ValueError(msg)
+            else:
+                return None
+        else:
+            return errors
 
-        # Line inputs the data
-        input_lines = self.lines_structure.index.to_numpy()
-        input_flux = self.lines_structure.line_flux.to_numpy()
-        input_err = self.lines_structure.line_flux_err.to_numpy()
 
-        # Unpack physical parameters
-        flambda_arr = self.lines_structure.f_lambda.to_numpy()
-        ion_arr = self.lines_structure.particle.to_numpy()
+    def run(self, draws=1000, tune=2000, chains=8, cores=8, target_accept=0.8, nuts_sampler='numpyro', callback=None,
+            linear_scale_results=True):
 
-        # Unpack the temp/den structure arrays
-        temp_id_arr = self.lines_structure.temp.to_numpy()
-        den_id_arr = self.lines_structure.den.to_numpy()
-        tem_eq_arr = self.lines_structure.eq_temp.to_numpy()
-        den_eq_arr = self.lines_structure.eq_den.to_numpy()
-
-        # Inputs object
-        print(f'Multi-region direct method sampler')
-        print(f'- Readying inputs:')
-        self.inputs = InputsDirectMethod(input_lines, input_flux, input_err, flambda_arr, ion_arr,
-                                         temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr)
+        # Input data
+        self.inputs = InputsDirectMethod.from_dataframe(self.lines_structure)
 
         # Create the model
         print(f'- Compiling model:')
@@ -417,27 +471,43 @@ class DirectMethod:
 
         # Run the model
         print(f'- Launching sampler:')
-        self.trace = run_model(self.model)
+        self.trace = run_model(self.model,  draws=draws, tune=tune, chains=chains, cores=cores, target_accept=target_accept,
+                               nuts_sampler=nuts_sampler, callback=callback)
+
+        # Remove the normalization from the fluxes
+        if linear_scale_results:
+            self.trace.posterior['theo_flux'] = np.power(10, self.trace.posterior['theo_flux'])
+            self.trace.observed_data['likelihood'] = np.power(10, self.trace.observed_data['likelihood'])
+
+        # Remove the log scale for the helium abundaces
+        for helium in ['He1', 'He2']:
+            if helium in self.inputs.ion_arr:
+                self.trace.posterior[helium] = np.power(10, self.trace.posterior[helium])
+
+        return
+
+    def save_line_structure(self, fname):
+
+
+        lime.save_frame(fname, self.lines_structure)
 
         return
 
     def save_trace(self, fname):
 
-        # Save with arviz formating
         az.to_netcdf(self.trace, fname)
-        # results_dict = pack_results(fname)
-        # save_dataset(fname, results_dict)
 
         return
 
-    def plot_trace(self, var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "cHBeta", "den_low", "temp_low",
-                                      "temp_high"]):
-        # var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "Ar4", "Ne3", "cHBeta", "den_low", "temp_low",
-        #              "temp_high"]
-        az.plot_pair(self.trace, var_names=var_names, divergences=True)
-        az.plot_posterior(self.trace, var_names=var_names)
-        summary = az.summary(self.trace, var_names=var_names)
-        print(summary)
-        plt.show()
+    # def plot_trace(self, var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "cHBeta", "den_low", "temp_low",
+    #                                   "temp_high"]):
+    #     # var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "Ar4", "Ne3", "cHBeta", "den_low", "temp_low",
+    #     #              "temp_high"]
+    #     az.plot_pair(self.trace, var_names=var_names, divergences=True)
+    #     az.plot_posterior(self.trace, var_names=var_names)
+    #     summary = az.summary(self.trace, var_names=var_names)
+    #     print(summary)
+    #     plt.show()
+    #
+    #     return
 
-        return

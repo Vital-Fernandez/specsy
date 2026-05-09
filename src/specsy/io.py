@@ -1,3 +1,4 @@
+import logging
 import os
 import numpy as np
 import configparser
@@ -5,6 +6,10 @@ from pathlib import Path
 from collections.abc import Sequence
 from astropy.io import fits
 from innate import load_dataset
+from lime import load_cfg
+
+_logger = logging.getLogger('SpecSy')
+
 
 FITS_INPUTS_EXTENSION = {'lines_list': '20A', 'line_fluxes': 'E', 'line_err': 'E'}
 
@@ -16,6 +21,9 @@ FITS_OUTPUTS_EXTENSION = {'parameter_list': '20A',
                           'p84th': 'E',
                           'true': 'E'}
 
+# Load lime configuration
+_cfg_file_path = Path(__file__).parent/'specsy.toml'
+specsy_cfg = load_cfg(_cfg_file_path)
 
 class SpecSyError(Exception):
     """SpecSy exception function"""

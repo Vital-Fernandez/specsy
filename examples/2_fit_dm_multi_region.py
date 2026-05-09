@@ -12,22 +12,27 @@ import specsy as sy
 
 # Synthetic region base parameters
 cfg_fname = f'./synthetic_spectrum_region_v0.toml'
-lines_fname = f'./synthetic_spectrum_lines_region_v2.txt'
+lines_fname = f'./synthetic_spectrum_lines_region_v3.txt'
 emis_fname = f'./emissivity_grids_pyneb_1.1.30.nc'
-trace_fname = f'./synthetic_spectrum_trace_v2.nc'
+trace_fname = f'./synthetic_spectrum_trace_v4.nc'
+lines_struc_fname = f'./synthetic_spectrum_line_structure_v3.txt'
 
 # Load the data
 spec_cfg = sy.load_cfg(cfg_fname)
-structure_df = sy.load_frame(lines_fname)
+lines_df = sy.load_frame(lines_fname)
 
-obj = sy.Nebula.from_lines_frame(structure_df, spec_cfg)
+obj = sy.Nebula.from_lines_frame(lines_df, spec_cfg['default_ionization_structure'])
 
-obj.infer.direct_method.prepare_inputs(emissivity_source=emis_fname, norm_list='H1_4861A', normalize_flux=False,
-                                       prior_cfg=spec_cfg['direct_method_priors'])
+
+
+obj.infer.direct_method.prepare_inputs(emissivity_source=emis_fname, normalize_flux=False, prior_cfg=spec_cfg['direct_method_priors'])
 
 print(obj.infer.direct_method.lines_structure.to_string())
+obj.infer.direct_method.save_line_structure(lines_struc_fname)
 
 obj.infer.direct_method.run()
+
+obj.infer.direct_method.save_trace(trace_fname)
 
 obj.infer.direct_method.plot_trace()
 

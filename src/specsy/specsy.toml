@@ -1,6 +1,6 @@
 [metadata]
 name = 'specsy'
-version = "0.9.dev1"
+version = "0.9.dev2"
 
 
 [direct_method_cfg]
@@ -13,12 +13,19 @@ temp_high_diag = ['O3_4363A']
 
 
 [direct_method_priors]
-logParams_list = ["He1", "He2"]
-T_low = ["Normal",15000.0,5000.0,1.0,0.0]
-T_high = ["Normal",15000.0,5000.0,1.0,0.0]
-n_e = ["HalfCauchy",2.0,0.0,200.0,0.0]
-cHBeta = ["HalfCauchy", 2.0, 0.0, 1.0, 0.0]
-tau = ["Lognormal",0,1.0,1.0,0.0]
+temp_low = ["Normal",15000.0,5000.0,1.0,0.0]
+temp_med = ["Normal",15000.0,5000.0,1.0,0.0]
+temp_high = ["Normal",15000.0,5000.0,1.0,0.0]
+temp_vhigh = ["Normal",15000.0,5000.0,1.0,0.0]
+
+den_low = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+den_med = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+den_high = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+den_vhigh = ["HalfNormal", 0, 300.0, 1.0, 0.0]
+
+tau = ["Lognormal", 0, 1.0, 1.0, 0.0]
+cHBeta = ["HalfCauchy", 0.0, 2.0, 1.0, 0.0]
+
 Ar3 = ["Normal",5.0,5.0,1.0,0.0]
 Ar4 = ["Normal",5.0,5.0,1.0,0.0]
 He1 = ["Normal",0.0,3.0,1.0,0.0]
@@ -134,15 +141,50 @@ Fe3 = ["Normal",5.0,5.0,1.0,0.0]
 #cube_interactive.'xtick.labelsize' = 10
 #cube_interactive.'ytick.labelsize' = 10
 
-[latex]
+[latex_param_notation]
+temp_low="$Te_{low}(K)$"
+temp_med="$Te_{med}(K)$"
+temp_high="$Te_{high}(K)$"
+temp_vhigh="$Te_{vhigh}(K)$"
+
+den_low="$ne_{low}(cm^{-3})$"
+den_med="$ne_{med}(cm^{-3})$"
+den_high="$ne_{high}(cm^{-3})$"
+den_vhigh="$ne_{vhigh}(cm^{-3})$"
+
+cHBeta = "$c(H\\beta)$"
+
+S2  = "$12+log(S^{+}/H^{+})$"
+S3  = "$12+log(S^{2+}/H^{+})$"
+S4  = "$12+log(S^{3+}/H^{+})$"
+O2  = "$12+log(O^{+}/H^{+})$"
+O3  = "$12+log(O^{2+}/H^{+})$"
+N2 =  "$12+log(Ni^{+}/H^{+})$"
+N3 =  "$12+log(Ni^{2+}/H^{+})$"
+NI3 = "$12+log(Ni^{2+}/H^{+})$"
+Cl3 = "$12+log(Cl^{2+}/H^{+})$"
+Cl4 = "$12+log(Cl^{3+}/H^{+})$"
+Ne3 = "$12+log(Ne^{2+}/H^{+})$"
+Fe3 = "$12+log(Fe^{2+}/H^{+})$"
+Ar3 = "$12+log(Ar^{2+}/H^{+})$"
+Ar4 = "$12+log(Ar^{3+}/H^{+})$"
+He1r = "$y^{+}$"
+He2r = "$y^{2+}$"
+He1 = "$y^{+}$"
+He2 = "$y^{2+}$"
+
+Ar = "$\\frac{Ar}{H}$"
+He = "$\\frac{He}{H}$"
+O = "$\\frac{O}{H}$"
+N = "$\\frac{N}{H}$"
+S = "$\\frac{S}{H}$"
+NO = "$\\frac{N}{O}$"
+
 y_plus = "$y^{+}$"
+
 He1_abund = "$y^{+}$"
 He2_abund = "$y^{++}$"
 Te = "$T_{e}$"
-T_low = "$T_{low}(K)$"
-T_LOW = "$T_{low}(K)$"
-T_high = "$T_{high}(K)$"
-T_HIGH = "$T_{high}(K)$"
 T_He = "$T_{He}$"
 n_e = "$n_{e}(cm^{-3})$"
 cHbeta = "$c(H\\beta)$"
@@ -154,10 +196,6 @@ ChiSq_Metals = "$\\chi^{2}_{Metals}$"
 ChiSq_O = "$\\chi^{2}_{O}$"
 ChiSq_S = "$\\chi^{2}_{S}$"
 S2_abund = "$S^{+}$"
-He1r = "$y^{+}$"
-He2r = "$y^{2+}$"
-He1 = "$y^{+}$"
-He2 = "$y^{2+}$"
 log_He1r = "$log(y^{+})$"
 log_He2r = "$log(y^{2+})$"
 OH = "$\\frac{O}{H}$"
@@ -168,26 +206,7 @@ O3_abund = "$O^{2+}$"
 N2_abund = "$N^{+}$"
 Ar3_abund = "$Ar^{2+}$"
 Ar4_abund = "$Ar^{3+}$"
-S2 = "$\\frac{S^{+}}{H^{+}}$"
-S3 = "$\\frac{S^{2+}}{H^{+}}$"
-S4 = "$\\frac{S^{3+}}{H^{+}}$"
-O2 = "$\\frac{O^{+}}{H^{+}}$"
-O3 = "$\\frac{O^{2+}}{H^{+}}$"
-Ni3 = "$\\frac{Ni^{2+}}{H^{+}}$"
-NI3 = "$\\frac{Ni^{2+}}{H^{+}}$"
-Cl3 = "$\\frac{Cl^{2+}}{H^{+}}$"
-CL3 = "$\\frac{Cl^{2+}}{H^{+}}$"
-Ne3 = "$\\frac{Ne^{2+}}{H^{+}}$"
-NE3 = "$\\frac{Ne^{2+}}{H^{+}}$"
-Fe3 = "$\\frac{Fe^{2+}}{H^{+}}$"
-FE3 = "$\\frac{Fe^{2+}}{H^{+}}$"
-N2 = "$\\frac{N^{+}}{H^{+}}$"
-Ar3 = "$\\frac{Ar^{2+}}{H^{+}}$"
-AR3 = "$\\frac{Ar^{2+}}{H^{+}}$"
-Ar4 = "$\\frac{Ar^{3+}}{H^{+}}$"
-AR4 = "$\\frac{Ar^{3+}}{H^{+}}$"
-Cl4 = "$\\frac{Cl^{3+}}{H^{+}}$"
-CL4 = "$\\frac{Cl^{3+}}{H^{+}}$"
+
 Ar_abund = "$\\frac{ArI}{HI}$"
 He_abund = "$\\frac{HeI}{HI}$"
 O_abund = "$\\frac{OI}{HI}$"
@@ -195,12 +214,7 @@ N_abund = "$\\frac{NI}{HI}$"
 S_abund = "$\\frac{SI}{HI}$"
 Ymass_O = "$Y_{O}$"
 Ymass_S = "$Y_{S}$"
-Ar = "$\\frac{Ar}{H}$"
-He = "$\\frac{He}{H}$"
-O = "$\\frac{O}{H}$"
-N = "$\\frac{N}{H}$"
-S = "$\\frac{S}{H}$"
-NO = "$\\frac{N}{O}$"
+
 calcFluxes_Op = "Line fluxes"
 z_star = "$z_{\\star}$"
 sigma_star = "$\\sigma_{\\star}$"

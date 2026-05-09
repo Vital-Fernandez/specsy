@@ -44,8 +44,6 @@ region.r1.den_mode  = "tied"
 region.r1.den_ref  = "low"
 
 [direct_method_priors]
-logParams_list = ["He1", "He2"]
-
 temp_low = ["Normal",15000.0,5000.0,1.0,0.0]
 temp_med = ["Normal",15000.0,5000.0,1.0,0.0]
 temp_high = ["Normal",15000.0,5000.0,1.0,0.0]

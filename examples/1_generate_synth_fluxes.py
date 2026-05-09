@@ -8,7 +8,7 @@ from specsy.observations import IonizationStructure
 
 # Synthetic region base parameters
 cfg_fname = f'./synthetic_spectrum_region_v0.toml'
-lines_fname = f'./synthetic_spectrum_lines_region_v2.txt'
+lines_fname = f'./synthetic_spectrum_lines_region_v3.txt'
 
 spec_cfg = sy.load_cfg(cfg_fname)
 true_params = spec_cfg['synth_spectrum']['true_params']

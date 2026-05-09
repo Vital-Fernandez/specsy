@@ -18,17 +18,17 @@ class RegionParam:
                parent value. If no equation is provided, the value is copied as-is.
     """
 
-    label: str
+    # Name and type
+    label: str # "low", "med", "high", "vhigh"
+    mode: str  # "free", "tied"
 
-    mode: str  # "free" | "tied"
+    # Parent region for the parameter and key for the empirical/theoretical relation if necessary
+    ref: Optional[Union[str, int]] = None, "low",
+    eq: Optional[str] = None  # TOIII_Hagelle into equations dict
 
     # Distribution for free variable and its parameters
     distr: Optional[Callable] = None
     kwargs: dict = field(default_factory=dict)
-
-    # Parent region for the parameter and key for the empirical/theoretical relation if necessary
-    ref: Optional[Union[str, int]] = None
-    eq: Optional[str] = None  # key into equations dict
 
 
 class Region:
@@ -38,11 +38,13 @@ class Region:
 
         self.name = name
         self.species = species
-        self.temp = RegionParam('temp', temp_mode, distr=temp_dist, kwargs=temp_kwargs, ref=temp_ref, eq=temp_eq)
-        self.den = RegionParam('den', den_mode, distr=den_dist, kwargs=den_kwargs, ref=den_ref, eq=den_eq)
+        self.temp = RegionParam('temp', temp_mode, ref=temp_ref, eq=temp_eq, distr=temp_dist, kwargs=temp_kwargs)
+        self.den = RegionParam('den', den_mode,  ref=den_ref, eq=den_eq, distr=den_dist, kwargs=den_kwargs)
 
         return
 
+    def __repr__(self):
+        return self.name
 
 class IonizationStructure:
 
@@ -73,14 +75,17 @@ class IonizationStructure:
     def __getitem__(self, key):
         return self.region_map[key]
 
-    def map_line_structure(self, lines_frame, temp_label='temp', den_label='den', norm_line=None):
+    def __repr__(self):
+        return f"[{', '.join(repr(r) for r in self.region_list)}]"
+
+    def map_line_structure(self, lines_frame, temp_label='temp', den_label='den'):
 
         # Add extra columns
-        lines_frame['region'] = '-'
-        lines_frame[temp_label] = '-'
-        lines_frame[den_label] = '-'
-        lines_frame['eq_temp'] = '-'
-        lines_frame['eq_den'] = '-'
+        for order, name_col in zip((4, 5, 6, 7, 8), ('region', 'temp', 'den', 'eq_temp', 'eq_den')):
+            if name_col not in lines_frame.columns:
+                lines_frame.insert(order, name_col, '-')
+            else:
+                lines_frame[name_col] = '-'
 
         # Map the regions
         for region in self.region_list:
@@ -102,10 +107,6 @@ class IonizationStructure:
                     lines_frame.loc[idcs, param_label] = f'{param.label}_{param.ref}'
                     if param.eq is not None:
                         lines_frame.loc[idcs, f'eq_temp'] = param.eq
-
-        # Remove the normalization line
-        if (norm_line is not None) and (norm_line in lines_frame.index):
-            lines_frame = lines_frame.drop(norm_line)
 
         return lines_frame
 
@@ -157,16 +158,17 @@ class Nebula:
                 raise SpecSyError(f'The input lines frame does not contain "line_flux"/"line_flux_err" or "{flux_col}"/"{err_col}" columns')
 
         # Import the ionization structure configuration keep track of the global / local configuration
-        input_conf = check_fit_conf(fit_cfg, default_cfg_prefix, obj_cfg_prefix, update_default, fit_cfg_suffix='_ionization_structure')
+        input_conf = check_fit_conf(fit_cfg, default_cfg_prefix, obj_cfg_prefix, update_default,
+                                    fit_cfg_suffix='_ionization_structure')
 
-        if 'region' not in input_conf['default_ionization_structure']:
+        if 'region' not in input_conf:
             msg = (f'The input "fit_cfg" argument does not contain a "region" entry for the ionization entry:'
                    f'\n - The queried sections are: f"{default_cfg_prefix}_ionization_structure" '
                    f'{"" if obj_cfg_prefix is None else f"{default_cfg_prefix}_ionization_structure"}')
             SpecSyError(msg)
 
         # Recover the ionization structure
-        ionization_structure = IonizationStructure(input_conf['default_ionization_structure']['region'])
+        ionization_structure = IonizationStructure(input_conf['region'])
 
         return cls(bands, ionization_structure)
 
