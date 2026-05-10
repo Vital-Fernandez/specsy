@@ -26,7 +26,11 @@ classifiers = ["Programming Language :: Python :: 3",
                "Programming Language :: Python :: 3.11"]
 
 [project.optional-dependencies]
-tensors = ["pytensor~=2.38.2"]
+tensors = ["pytensor~=2.38.2",
+           "blackjax~=1.5",
+           "numba~=0.65.1",
+           "numpyro~=0.21.0",
+           "nutpie~=0.16.8"]
 
 docs = ["sphinx-rtd-theme~=3.0",
         "ipympl~=0.9",
