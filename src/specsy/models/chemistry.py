@@ -7,7 +7,7 @@ import numpy as np
 import arviz as az
 import xarray as xr
 from lime import label_decomposition, Line, lines_frame, normalize_fluxes
-
+from pathlib import Path
 from innate import load_dataset
 
 from specsy.io import SpecSyError, specsy_cfg
@@ -359,7 +359,10 @@ class DirectMethod:
             raise SpecSyError(f'The normalization line "{self.norm_line}" is not in the input lines frame')
 
         # Prepare the emissivity interpolator
-        emis_dataset = load_dataset(emissivity_source)
+        if isinstance(emissivity_source, (str, Path)):
+            emis_dataset = load_dataset(emissivity_source)
+        else:
+            emis_dataset = emissivity_source
         self.emis_interp = compile_bilinear_interp(emis_dataset)
 
         # Prepare the prior cfg
@@ -439,7 +442,7 @@ class DirectMethod:
         # 5) Check if we have emissivity data
         bad = [idx for idx in self.lines_structure.index if idx not in self.emis_interp]
         if bad:
-            errors.append(f"Line emissivity for transitions: {bad}")
+            errors.append(f"Missing emissivity data for transitions: {bad}")
 
         # 6) Check the flux equation is recognized
         eq_flux_names = self.lines_structure.eq_flux.unique()

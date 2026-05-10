@@ -1,6 +1,6 @@
 [metadata]
 name = 'specsy'
-version = "0.9.dev2"
+version = "0.9.dev3"
 
 
 [direct_method_cfg]
