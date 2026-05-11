@@ -390,7 +390,8 @@ class DirectMethod:
 
         # Compute the reddening law
         flambda_arr = flambda_calc(self.lines_structure.wavelength, R_V, law, self.lines_structure.loc['H1_4861A'].wavelength)
-        self.lines_structure.insert(4, 'f_lambda', flambda_arr)
+        if 'f_lambda' not in self.lines_structure.columns:
+            self.lines_structure.insert(4, 'f_lambda', flambda_arr)
 
         # Map the target lines to the ionization structure
         self.lines_structure = self.ion_struct.map_line_structure(self.lines_structure)
@@ -490,27 +491,13 @@ class DirectMethod:
         return
 
     def save_line_structure(self, fname):
-
-
         lime.save_frame(fname, self.lines_structure)
 
         return
 
     def save_trace(self, fname):
-
         az.to_netcdf(self.trace, fname)
 
         return
 
-    # def plot_trace(self, var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "cHBeta", "den_low", "temp_low",
-    #                                   "temp_high"]):
-    #     # var_names = ["O2", "O3", "S2", "S3", "N2", "Ar3", "Ar4", "Ne3", "cHBeta", "den_low", "temp_low",
-    #     #              "temp_high"]
-    #     az.plot_pair(self.trace, var_names=var_names, divergences=True)
-    #     az.plot_posterior(self.trace, var_names=var_names)
-    #     summary = az.summary(self.trace, var_names=var_names)
-    #     print(summary)
-    #     plt.show()
-    #
-    #     return
 

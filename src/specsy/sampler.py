@@ -100,7 +100,7 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
             theo_flux = tt.inc_subtensor(theo_flux[i], flux)
 
         # Stored the fluxes and input fluxes, uncertainty
-        pm.Deterministic('theo_flux', theo_flux)
+        pm.Deterministic('theo_flux', theo_flux, dims='lines')
 
         # Likelihood
         pm.Normal("likelihood", mu=theo_flux, sigma=input_err, observed=input_obs, dims='lines')

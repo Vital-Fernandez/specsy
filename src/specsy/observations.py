@@ -143,6 +143,75 @@ class Nebula:
         return cls(region_list)
 
     @classmethod
+    def from_structure_table(cls, lines_structure, flux_col='line_flux', err_col='line_flux_err'):
+        """
+        Create a Nebula object from an existing lines_structure dataframe
+        (e.g. nebula.infer.direct_method.lines_structure).
+
+        Parameters
+        ----------
+        lines_structure : str or DataFrame
+            Path to the lines structure file or a DataFrame with the structure.
+        flux_col : str
+            Column name for the line fluxes.
+        err_col : str
+            Column name for the line flux errors.
+        """
+
+        # Load the lines structure
+        lines_frame = check_file_dataframe(lines_structure, copy_input=True)
+
+        # Recover the unique regions from the 'region' column
+        unique_regions = lines_frame['region'].unique()
+
+        # Reconstruct the ionization structure from the dataframe columns
+        region_list = []
+        for region_name in unique_regions:
+            region_mask = lines_frame['region'] == region_name
+            region_lines = lines_frame[region_mask]
+
+            temp_label = region_lines['temp'].iloc[0]
+            den_label = region_lines['den'].iloc[0]
+
+            # Determine if temp/den are free or tied by checking if label matches region
+            temp_ref_name = temp_label.split('_', 1)[1]
+            den_ref_name = den_label.split('_', 1)[1]
+
+            temp_mode = 'free' if temp_ref_name == region_name else 'tied'
+            den_mode = 'free' if den_ref_name == region_name else 'tied'
+
+            # Recover equations if any
+            temp_eq = region_lines['eq_temp'].iloc[0]
+            den_eq = region_lines['eq_den'].iloc[0]
+            temp_eq = None if temp_eq in ('-', '', 'nan') else temp_eq
+            den_eq = None if den_eq in ('-', '', 'nan') else den_eq
+
+            # Recover the species in this region
+            species = list(region_lines['particle'].unique())
+
+            # Build the Region object
+            region = Region(
+                name=region_name,
+                species=species,
+                temp_mode=temp_mode,
+                temp_ref=temp_ref_name if temp_mode == 'tied' else None,
+                temp_eq=temp_eq,
+                den_mode=den_mode,
+                den_ref=den_ref_name if den_mode == 'tied' else None,
+                den_eq=den_eq,
+            )
+            region_list.append(region)
+
+        # Build the IonizationStructure from the recovered regions
+        ionization_structure = IonizationStructure.__new__(IonizationStructure)
+        ionization_structure.region_list = region_list
+        ionization_structure.n_regions = len(region_list)
+        ionization_structure.region_map = {r.name: r for r in region_list}
+
+        return cls(lines_frame, ionization_structure)
+
+
+    @classmethod
     def from_lines_frame(cls, lines_frame, fit_cfg=None, flux_entry='profile', default_cfg_prefix='default',
                          obj_cfg_prefix=None, update_default=False):
 
@@ -171,6 +240,8 @@ class Nebula:
         ionization_structure = IonizationStructure(input_conf['region'])
 
         return cls(bands, ionization_structure)
+
+
 
     def build(self):
 
