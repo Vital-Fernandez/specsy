@@ -1,7 +1,7 @@
 # Specsy
 
 <p align="center">
-  <img src="src/specsy/resources/images/Specsy_logo_transparent_light.PNG" alt="Specsy Logo" width="300"/>
+  <img src="https://github.com/Vital-Fernandez/specsy/blob/7e35568f6d154486f5603e94fe39dd08e5e54834/src/specsy/resources/images/Specsy_logo_transparent_dark.PNG" alt="Specsy Logo" width="300"/>
 </p>
 
 A Python library for the analysis of astronomical spectra. Specsy includes a Bayesian sampler for the
