@@ -1,6 +1,5 @@
 import pymc as pm
 import numpy as np
-import nutpie
 from pytensor import tensor as tt
 from specsy.models.fluxes_line import FLUX_EQUATION_DICT
 
