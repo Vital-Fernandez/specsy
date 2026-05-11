@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "specsy"
 version = "0.9.dev3"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
 authors = [{name = "Vital Fernández", email = "vgf@umich.edu"}]
@@ -47,3 +47,7 @@ mpl-baseline-path = 'tests/baseline'
 mpl-results-path = 'tests/outputs'
 mpl-results-always = false
 addopts = "-p no:asdf_schema_tester"
+
+[tool.setuptools.package-data]
+specsy = ["resources/data/*",
+          "resources/images/*"]
