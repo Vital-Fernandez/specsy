@@ -4,7 +4,7 @@ from pandas import unique
 from pytensor import tensor as tt
 from arviz import to_netcdf
 
-from specsy.models.literature import _TEM_FUNC_DICT, _DEN_FUNC_DICT
+from specsy.models.literature import TEM_FUNC_DICT, DEN_FUNC_DICT
 from lime.io import check_file_dataframe
 
 def storeValueInTensor(idx, value, tensor1D):
@@ -244,8 +244,8 @@ def direct_method_multi_region(lines_df, emis_interp, prior_dict, fname=None):
         for i in range_arr:
 
             # Compute the emissivity
-            tem = dm_model[Tem_label_arr[i]] if temp_eq_check[i] else _TEM_FUNC_DICT[tem_eq_arr[i]](dm_model[Tem_label_arr[i]])
-            den = dm_model[den_label_arr[i]] if den_eq_check[i] else _DEN_FUNC_DICT[den_eq_arr[i]](dm_model[den_label_arr[i]])
+            tem = dm_model[Tem_label_arr[i]] if temp_eq_check[i] else TEM_FUNC_DICT[tem_eq_arr[i]](dm_model[Tem_label_arr[i]])
+            den = dm_model[den_label_arr[i]] if den_eq_check[i] else DEN_FUNC_DICT[den_eq_arr[i]](dm_model[den_label_arr[i]])
             emis = emis_interp[line_arr[i]](tem, den)
 
             if particle_arr[i] == 'H1':

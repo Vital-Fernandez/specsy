@@ -14,7 +14,7 @@ from specsy.io import SpecSyError, specsy_cfg
 from specsy.tools import truncated_gaussian, flux_distribution
 from specsy.operations.interpolation import compile_bilinear_interp
 from specsy.models.extinction import flambda_calc
-from specsy.models.literature import _TEM_FUNC_DICT, _DEN_FUNC_DICT
+from specsy.models.literature import TEM_FUNC_DICT, DEN_FUNC_DICT
 from specsy.models.fluxes_line import DEFAULT_PARTICLE_EQUATIONS_KEYS, FLUX_EQUATION_DICT
 from specsy.sampler import direct_method_multi_region, run_model
 from matplotlib import pyplot as plt
@@ -427,7 +427,7 @@ class DirectMethod:
                 errors.append(f"'{col}' is '-' for non-'-' region rows at lines: {bad}")
 
         # 3) eq_temp / eq_den values must be keys in their respective dicts
-        for col, d in (('eq_temp', _TEM_FUNC_DICT), ('eq_den', _DEN_FUNC_DICT)):
+        for col, d in (('eq_temp', TEM_FUNC_DICT), ('eq_den', DEN_FUNC_DICT)):
             mask = self.lines_structure[col] != '-'
             bad = self.lines_structure.index[mask & ~self.lines_structure[col].isin(d)].tolist()
             if bad:
@@ -471,7 +471,7 @@ class DirectMethod:
         # Create the model
         print(f'- Compiling model:')
         self.model = direct_method_multi_region(inputs=self.inputs, emis_interp=self.emis_interp, prior_dict=self.prior_cfg,
-                                                tem_EQDB=_TEM_FUNC_DICT, den_EQDB=_DEN_FUNC_DICT)
+                                                tem_EQDB=TEM_FUNC_DICT, den_EQDB=DEN_FUNC_DICT)
 
         # Run the model
         print(f'- Launching sampler:')
