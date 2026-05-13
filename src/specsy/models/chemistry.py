@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import lime
 import numpy as np
+from pandas import DataFrame
 import arviz as az
 import xarray as xr
 from lime import label_decomposition, Line, lines_frame, normalize_fluxes
@@ -276,11 +277,13 @@ def package_results(fname, inference_data, inputs=None, prior_dict=None, true_va
 class InputsDirectMethod:
 
     def __init__(self, input_lines, input_flux, input_err, flambda_arr, ion_arr,
-                 temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr, eq_flux_arr,):
+                 temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr, eq_flux_arr, unique_species, input_merged=None):
 
         self.labels  = input_lines
         self.flux_arr   = input_flux
         self.err_arr    = input_err
+        self.log_flux_arr = np.log10(self.flux_arr)
+        self.log_err_arr  =  np.log10(1 + self.err_arr / self.flux_arr )
         self.flambda_arr  = flambda_arr
         self.ion_arr      = ion_arr
         self.temp_id_arr  = temp_id_arr
@@ -288,15 +291,38 @@ class InputsDirectMethod:
         self.eq_tem_arr   = tem_eq_arr
         self.eq_den_arr   = den_eq_arr
         self.eq_flux_arr   = eq_flux_arr
+        self.unique_species = unique_species
+
+        # Convenience
+        self.range_arr = np.arange(len(self.labels))
+        self.temp_eq_check = self.eq_tem_arr == '-'
+        self.den_eq_check = self.eq_den_arr == '-'
+        self.unique_params = np.unique(np.concatenate([self.temp_id_arr, self.den_id_arr]))
+
+        idcs_merged = np.char.endswith(self.labels.astype(str), '_m')
+        self.single_arr = np.ones(self.labels.size).astype(bool)
+        self.single_arr[idcs_merged] = False
+
+        self.merge_dict = input_merged
+
+        return
+
 
     @classmethod
-    def from_dataframe(cls, lines_structure):
+    def from_dataframe(cls, lines_structure, check_merged=True):
 
         # Remove normalization line
         if 'norm_line' in lines_structure.columns:
             idcs = ~lines_structure.index.isin(lines_structure['norm_line'].unique())
         else:
             idcs = np.ones(lines_structure.index.size).astype(bool)
+
+        # Check for merged
+        if check_merged:
+            idcs_merged = ~lines_structure.merged.isin(['yes', '-'])
+            idcs = idcs & ~idcs_merged
+        else:
+            idcs_merged = np.zeros(lines_structure.index.size).astype(bool)
 
         # Line inputs the data
         input_lines = lines_structure.loc[idcs].index.to_numpy()
@@ -305,7 +331,7 @@ class InputsDirectMethod:
 
         # Unpack physical parameters
         flambda_arr = lines_structure.loc[idcs].f_lambda.to_numpy()
-        ion_arr     = lines_structure.loc[idcs].particle.to_numpy()
+        ion_arr = lines_structure.loc[idcs].particle.to_numpy()
 
         # Unpack the temp/den structure arrays
         temp_id_arr = lines_structure.loc[idcs].temp.to_numpy()
@@ -314,11 +340,23 @@ class InputsDirectMethod:
         den_eq_arr  = lines_structure.loc[idcs].eq_den.to_numpy()
         eq_flux_arr  = lines_structure.loc[idcs].eq_flux.to_numpy()
 
+        # Consider all possible particles
+        unique_species = np.unique(lines_structure.particle.to_numpy())
+
+        # Making merged inputs
+        if np.any(idcs_merged):
+            inputs_merged = {}
+            for line_parent in lines_structure.loc[idcs_merged, 'merged'].unique():
+                df_children = lines_structure.loc[lines_structure.merged == line_parent]
+                inputs_merged[line_parent] = InputsDirectMethod.from_dataframe(df_children, check_merged=False)
+        else:
+            inputs_merged = None
+
         print(f'Multi-region direct method sampler')
         print(f'- Readying inputs:')
 
         return cls(input_lines, input_flux, input_err, flambda_arr, ion_arr,
-                   temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr, eq_flux_arr)
+                   temp_id_arr, den_id_arr, tem_eq_arr, den_eq_arr, eq_flux_arr, unique_species, inputs_merged)
 
 
 class DirectMethod:
@@ -335,6 +373,8 @@ class DirectMethod:
         self._lines_frame = lines_df
         self.lines_structure = None
 
+        self.merged_structure = None
+
         # Load lines data
         self.norm_line = None
         self.ion_struct = ion_struct
@@ -347,8 +387,8 @@ class DirectMethod:
         return
 
     def prepare_inputs(self, line_list=None, emissivity_source=None, prior_cfg=None, kinematic_component=0,
-                       R_V=3.1, law='G03 LMC', norm_line='H1_4861A', normalize_flux=True, flux_column='profile_flux',
-                       review_model=True):
+                       R_V=3.1, law='G03 LMC', norm_line='H1_4861A', normalize_flux=True, exclude_merged=False,
+                       flux_column='profile_flux', review_model=True):
 
         # Check the lines frame and normalization line
         if self._lines_frame is None:
@@ -381,31 +421,61 @@ class DirectMethod:
             idcs_kinem = self.lines_structure.index.contains(f'_k-{kinematic_component}')
         self.lines_structure = self.lines_structure.loc[idcs_kinem]
 
+        # Remove merged
+        if 'merged' not in self.lines_structure.columns:
+            self.lines_structure.insert(3, 'merged', '-')
+        idcs_merged = self.lines_structure.index.str.contains('_m')
+        if exclude_merged:
+            self.lines_structure = self.lines_structure.loc[~idcs_merged]
+        else:
+            self.lines_structure.loc[idcs_merged, 'merged'] = 'yes'
+
         # Make a copy of the frame and normalize the fluxes
         if normalize_flux:
             self.lines_structure = normalize_fluxes(self.lines_structure, norm_list=norm_line, flux_column=flux_column,
                                                     clear_empty=True)
         else:
-            self.lines_structure.insert(3, 'norm_line', self.norm_line)
+            self.lines_structure.insert(4, 'norm_line', self.norm_line)
 
         # Compute the reddening law
         flambda_arr = flambda_calc(self.lines_structure.wavelength, R_V, law, self.lines_structure.loc['H1_4861A'].wavelength)
         if 'f_lambda' not in self.lines_structure.columns:
-            self.lines_structure.insert(4, 'f_lambda', flambda_arr)
+            self.lines_structure.insert(5, 'f_lambda', flambda_arr)
 
         # Map the target lines to the ionization structure
         self.lines_structure = self.ion_struct.map_line_structure(self.lines_structure)
 
         # Add the equations per ion
         if 'eq_flux' not in self.lines_structure.columns:
-            self.lines_structure.insert(9, 'eq_flux', '-')
+            self.lines_structure.insert(10, 'eq_flux', '-')
         for line_label in self.lines_structure.index:
             eq_name = DEFAULT_PARTICLE_EQUATIONS_KEYS.get(self.lines_structure.at[line_label, 'particle'], 'metals')
             self.lines_structure.loc[line_label, 'eq_flux'] = eq_name
 
+        # Prepare the data for the mreged lines
+        if not exclude_merged:
+            self.prepare_merged_inputs()
+
         # Check for issues
         if review_model:
             self._review_inputs()
+
+        return
+
+    def prepare_merged_inputs(self):
+
+        merged_arr = self.lines_structure.loc[self.lines_structure['merged'] == 'yes'].index.to_numpy()
+        for line in merged_arr:
+            comp_list = self.lines_structure.loc[line, 'group_label'].split('+')
+            for comp in comp_list:
+                comp = lime.Line.from_transition(comp)
+                self.lines_structure.loc[comp.label, 'merged'] = line
+                self.lines_structure.loc[comp.label, 'particle'] = comp.particle.label
+                self.lines_structure.loc[comp.label, 'eq_flux'] = DEFAULT_PARTICLE_EQUATIONS_KEYS.get(comp.particle.label, 'metals')
+
+        idcs_new = ~self.lines_structure['merged'].isin(['yes', '-'])
+        updated_df = self.ion_struct.map_line_structure(self.lines_structure.loc[idcs_new])
+        self.lines_structure.loc[idcs_new] = updated_df
 
         return
 
@@ -441,7 +511,11 @@ class DirectMethod:
             errors.append(f"'particle' maps to multiple regions: {detail}")
 
         # 5) Check if we have emissivity data
-        bad = [idx for idx in self.lines_structure.index if idx not in self.emis_interp]
+        bad = []
+        for line in self.lines_structure.index:
+            if line not in self.emis_interp:
+                if not line.endswith('_m'):
+                    bad.append(line)
         if bad:
             errors.append(f"Missing emissivity data for transitions: {bad}")
 

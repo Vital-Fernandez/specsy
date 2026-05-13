@@ -78,14 +78,15 @@ class IonizationStructure:
     def __repr__(self):
         return f"[{', '.join(repr(r) for r in self.region_list)}]"
 
-    def map_line_structure(self, lines_frame, temp_label='temp', den_label='den'):
+    def map_line_structure(self, lines_frame, temp_label='temp', den_label='den', clear_previous=True):
 
         # Add extra columns
-        for order, name_col in zip((4, 5, 6, 7, 8), ('region', 'temp', 'den', 'eq_temp', 'eq_den')):
-            if name_col not in lines_frame.columns:
-                lines_frame.insert(order, name_col, '-')
-            else:
-                lines_frame[name_col] = '-'
+        if clear_previous:
+            for order, name_col in zip((6, 7, 8, 9, 10), ('region', 'temp', 'den', 'eq_temp', 'eq_den')):
+                if name_col not in lines_frame.columns:
+                    lines_frame.insert(order, name_col, '-')
+                else:
+                    lines_frame[name_col] = '-'
 
         # Map the regions
         for region in self.region_list:

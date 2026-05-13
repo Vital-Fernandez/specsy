@@ -40,6 +40,82 @@ def set_prior(param, prior_dict, abund_type=False, name_param=None):
 
 def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQDB):
 
+
+    # Convenience arrays
+    # # range_arr = np.arange(inputs.labels.size)
+    # single_arr = np.ones(inputs.labels.size).astype(bool) if inputs.merged_dict is None else
+    merge_d = inputs.merge_dict
+
+    # PyMC model
+    with (pm.Model(coords={"lines": inputs.labels}) as model):
+
+        # Save input fluxes
+        pm.Data('input_flux', inputs.flux_arr, dims='lines')
+        pm.Data('input_err', inputs.err_arr, dims='lines')
+
+        # Container to store the models
+        theo_flux = tt.zeros(inputs.labels.size)
+
+        # Compile the abundances
+        for ion in inputs.unique_species:
+            if ion != 'H1':
+                set_prior(ion, prior_dict, abund_type=True, name_param=ion)
+        pm.Data('H1', 1.0)
+
+        # Extinction
+        cHbeta = set_prior('cHBeta', prior_dict)
+
+        # Generate the free temperatures and densities
+        for param in inputs.unique_params:
+            set_prior(param, prior_dict)
+
+        # Loop through the lines and compute the fluxes
+        for i in inputs.range_arr:
+
+            # Compute the emissivity
+            if inputs.single_arr[i]:
+                tem = model[inputs.temp_id_arr[i]] if inputs.temp_eq_check[i] else tem_EQDB[inputs.eq_tem_arr[i]](model[inputs.temp_id_arr[i]])
+                den = model[inputs.den_id_arr[i]] if inputs.den_eq_check[i] else den_EQDB[inputs.eq_den_arr[i]](model[inputs.den_id_arr[i]])
+                emis = emis_interp[inputs.labels[i]](tem, den)
+
+                # Compute the flux
+                flux = FLUX_EQUATION_DICT[inputs.eq_flux_arr[i]](abund=model[inputs.ion_arr[i]], emis=emis,
+                                                                 flambda=inputs.flambda_arr[i], cHbeta=cHbeta)
+
+
+            else:
+                # flux = 0
+                # merge_in = merge_d[inputs.labels[i]]
+                # for j in merge_in.range_arr:
+                #     tem = model[merge_in.temp_id_arr[j]] if merge_in.temp_eq_check[j] else tem_EQDB[merge_in.eq_tem_arr[j]](model[merge_in.temp_id_arr[j]])
+                #     den = model[merge_in.den_id_arr[j]] if merge_in.den_eq_check[j] else den_EQDB[merge_in.eq_den_arr[j]](model[merge_in.den_id_arr[j]])
+                #     emis = emis_interp[merge_in.labels[j]](tem, den)
+                #     flux = flux + FLUX_EQUATION_DICT[merge_in.eq_flux_arr[j]](abund=model[merge_in.ion_arr[j]], emis=emis,
+                #                                                               flambda=inputs.flambda_arr[i], cHbeta=cHbeta)
+                flux_terms = []
+                merge_in = merge_d[inputs.labels[i]]
+                for j in merge_in.range_arr:
+                    tem = model[merge_in.temp_id_arr[j]] if merge_in.temp_eq_check[j] else tem_EQDB[merge_in.eq_tem_arr[j]](model[merge_in.temp_id_arr[j]])
+                    den = model[merge_in.den_id_arr[j]] if merge_in.den_eq_check[j] else den_EQDB[merge_in.eq_den_arr[j]](model[merge_in.den_id_arr[j]])
+                    emis = emis_interp[merge_in.labels[j]](tem, den)
+                    flux_terms.append(FLUX_EQUATION_DICT[merge_in.eq_flux_arr[j]](abund=model[merge_in.ion_arr[j]], emis=emis,
+                                                                                  flambda=inputs.flambda_arr[i], cHbeta=cHbeta))
+                # convert from log to linear, sum, convert back to log
+                flux = tt.log10(tt.sum(tt.pow(10, tt.stack(flux_terms))))
+
+            theo_flux = tt.inc_subtensor(theo_flux[i], flux)
+
+        # Stored the fluxes and input fluxes, uncertainty
+        pm.Deterministic('theo_flux', theo_flux, dims='lines')
+
+        # Likelihood
+        pm.Normal("likelihood", mu=theo_flux, sigma=inputs.log_err_arr, observed=inputs.log_flux_arr, dims='lines')
+
+    return model
+
+
+def direct_method_multi_region_orig(inputs, emis_interp, prior_dict, tem_EQDB, den_EQDB):
+
     # Observables
     labels_arr = inputs.labels
     input_obs = np.log10(inputs.flux_arr)
