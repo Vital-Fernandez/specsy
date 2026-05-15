@@ -36,16 +36,16 @@ def TNII_TOIII_PerezMontero2009(TOIII):
 def TNII_TOIII_Campbell1986(TOIII):
     return 0.7 * TOIII + 3000
 
-def TNII_TNIII_Cordoba2020_Pminus(TNIII):
+def TNII_TOIII_Cordova2020_Pminus(TNIII):
     return 1 / (0.54 * TNIII**-1 + 0.52 / 10000)
 
-def TOIII_TNII_Cordoba2020_Pminus(TNII):
+def TOIII_TNII_Cordova2020_Pminus(TNII):
     return 1 / (1.04 * TNII**-1 + 0.05 / 10000)
 
-def TNII_TNIII_Cordoba2020_Pplus(TNIII):
+def TNII_TOIII_Cordova2020_Pplus(TNIII):
     return 1 / (0.61 * TNIII**-1 + 0.36 / 10000)
 
-def TOIII_TNII_Cordoba2020_Pplus(TNII):
+def TOIII_TNII_Cordova2020_Pplus(TNII):
     return 1 / (1.00 * TNII**-1 + 0.03 / 10000)
 
 def TSII_TOII_PerezMontero2003(TOII):
@@ -67,27 +67,19 @@ def TOII_TOIII_Pilyugin2006(TOIII):
     return 0.729 * TOIII + 2570
 
 
-TEM_FUNC_DICT = {
-    'TOII_TOIII_PagelStasinska1990':    TOII_TOIII_PagelStasinska1990,
-    'TNII_TOIII_PerezMontero2009':      TNII_TOIII_PerezMontero2009,
-    'TNII_TOIII_Campbell1986':          TNII_TOIII_Campbell1986,
-    'TNII_TNIII_Cordoba2020_Pminus':    TNII_TNIII_Cordoba2020_Pminus,
-    'TOIII_TNII_Cordoba2020_Pminus':    TOIII_TNII_Cordoba2020_Pminus,
-    'TNII_TNIII_Cordoba2020_Pplus':     TNII_TNIII_Cordoba2020_Pplus,
-    'TOIII_TNII_Cordoba2020_Pplus':     TOIII_TNII_Cordoba2020_Pplus,
-    'TSII_TOII_PerezMontero2003':       TSII_TOII_PerezMontero2003,
-    'TSIII_TOIII_PerezMontero2005':     TSIII_TOIII_PerezMontero2005,
-    'TSIII_TOIII_Hagele2006':           TSIII_TOIII_Hagele2006,
-    'TOII_TOIII_Garnett1992':           TOII_TOIII_Garnett1992,
-    'TOII_TOIII_Izotov1997':            TOII_TOIII_Izotov1997,
-    'TOII_TOIII_Pilyugin2006':          TOII_TOIII_Pilyugin2006,
-}
-
-
-#
-# _TEM_FUNC_DICT = {'TSIII_Hagele2006': TSIII_from_TOIII_relation,
-#                   'TOIII_Hagele2006': TOIII_from_TSIII_relation,
-#                   'TOII_Epm2009': TOII_from_TOIII_relation}
+TEM_FUNC_DICT = {'TOII_TOIII_PagelStasinska1990':    TOII_TOIII_PagelStasinska1990,
+                 'TNII_TOIII_PerezMontero2009':      TNII_TOIII_PerezMontero2009,
+                 'TNII_TOIII_Campbell1986':          TNII_TOIII_Campbell1986,
+                 'TNII_TNIII_Cordova2020_Pminus':    TNII_TOIII_Cordova2020_Pminus,
+                 'TOIII_TNII_Cordova2020_Pminus':    TOIII_TNII_Cordova2020_Pminus,
+                 'TNII_TNIII_Cordova2020_Pplus':     TNII_TOIII_Cordova2020_Pplus,
+                 'TOIII_TNII_Cordova2020_Pplus':     TOIII_TNII_Cordova2020_Pplus,
+                 'TSII_TOII_PerezMontero2003':       TSII_TOII_PerezMontero2003,
+                 'TSIII_TOIII_PerezMontero2005':     TSIII_TOIII_PerezMontero2005,
+                 'TSIII_TOIII_Hagele2006':           TSIII_TOIII_Hagele2006,
+                 'TOII_TOIII_Garnett1992':           TOII_TOIII_Garnett1992,
+                 'TOII_TOIII_Izotov1997':            TOII_TOIII_Izotov1997,
+                 'TOII_TOIII_Pilyugin2006':          TOII_TOIII_Pilyugin2006}
 
 DEN_FUNC_DICT = {}
 
