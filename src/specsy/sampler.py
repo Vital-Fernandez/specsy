@@ -190,7 +190,8 @@ def run_model(model, draws=1000, tune=2000, target_accept=0.8, chains=8, cores=8
 
     with model:
         trace = pm.sample(draws=draws, tune=tune, target_accept=target_accept, chains=chains, cores=cores,
-                          nuts_sampler=nuts_sampler, callback=callback, progressbar='combined',
-                          nuts_sampler_kwargs=nuts_sampler_kwargs)
+                          nuts_sampler=nuts_sampler,
+                          # callback=callback,
+                          progressbar='combined', nuts_sampler_kwargs=nuts_sampler_kwargs)
 
     return trace

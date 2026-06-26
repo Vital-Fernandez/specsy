@@ -39,107 +39,146 @@ Cl3 = ["Normal",5.0,5.0,1.0,0.0]
 Ne3 = ["Normal",5.0,5.0,1.0,0.0]
 Fe3 = ["Normal",5.0,5.0,1.0,0.0]
 
+[stellar]
+source_list = ['BPASS', 'starburst99', 'pystarburst99']
+
+[stellar.ssp.BPASS]
+z_keys.Zem5 = 1e-05
+z_keys.Zem4 = 0.0001
+z_keys.Z001 = 0.001
+z_keys.Z002 = 0.002
+z_keys.Z003 = 0.003
+z_keys.Z004 = 0.004
+z_keys.Z006 = 0.006
+z_keys.Z008 = 0.008
+z_keys.Z010 = 0.01
+z_keys.Z014 = 0.014
+z_keys.Z020 = 0.02
+z_keys.Z030 = 0.03
+z_keys.Z040 = 0.04
+
+log_age_arr = [ 6.0,  6.1,  6.2,  6.3,  6.4,  6.5,  6.6,  6.7,  6.8,  6.9,  7.0 ,
+                7.1,  7.2,  7.3,  7.4,  7.5,  7.6,  7.7,  7.8,  7.9,  8.0,  8.1,
+                8.2,  8.3,  8.4,  8.5,  8.6,  8.7,  8.8,  8.9,  9.0 , 9.1,  9.2,
+                9.3,  9.4,  9.5,  9.6,  9.7,  9.8,  9.9, 10.0 , 10.1, 10.2, 10.3,
+                10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0 ]
+
+[stellar.ssp.starburst99]
+z_keys.Z001 = 0.001
+z_keys.Z004 = 0.004
+z_keys.Z008 = 0.008
+z_keys.Z020 = 0.020
+z_keys.Z040 = 0.040
+
+[stellar.ssp.pystarburst99]
+z_keys.Z0    = 0.0
+z_keys.XMP   = 0.00001
+z_keys.IZw18 = 0.0004
+z_keys.SMC   = 0.002
+z_keys.LMC   = 0.006
+z_keys.MW    = 0.014
+z_keys.MWC   = 0.020
 
 
+[stellar.ssp.pystarburst99.MWC]
+folder          = 'Z020_pySB99_files'
+minimum_wr_mass = 20.0
+mass_grid       = [300, 200, 150, 120, 85, 60, 40, 32, 25, 20, 15, 12, 9, 7, 5, 4, 3, 2.5, 2, 1.7, 1.5, 1.35, 1.25, 1.1, 1, 0.9, 0.8]
+tracks_v00      = 'Z020v00_VMS_tracks.npy'
+tracks_v40      = 'Z020v40_VMS_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z020_test.dat'
+ifa_line        = 'ifa_line_p00_reform.npy'
+ifa_cont        = 'ifa_cont_p00_reform.npy'
+ifa_params      = 'spec_params_ifa_line_p00.npy'
+lm_params       = 'spec_params_lowmassp00.npy'
+lm_flux         = 'lcb97_p00_reform.npy'
+wr_suffix       = 'Z020'
 
-## Traces plot
-#traces."axes.labelsize" = 14
-#traces."ytick.labelsize" = 8
-#traces."xtick.labelsize" = 8
-#
+[stellar.ssp.pystarburst99.MW]
+folder          = 'Z014_pySB99_files'
+minimum_wr_mass = 25.0
+mass_grid       = [500, 300, 200, 150, 120, 85, 60, 50, 40, 32, 25, 23, 22, 20, 17, 15, 14, 12, 11.75, 11.5, 10, 9, 8, 7, 5, 4, 3, 2.5, 2, 1.7, 1.5, 1.35, 1.25, 1.1, 1, 0.9, 0.8]
+tracks_v00      = 'Z014v00_VMS_tracks.npy'
+tracks_v40      = 'Z014v40_VMS_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z020_test.dat'
+ifa_line        = 'ifa_line_p00_reform.npy'
+ifa_cont        = 'ifa_cont_p00_reform.npy'
+ifa_params      = 'spec_params_ifa_line_p00.npy'
+lm_params       = 'spec_params_lowmassp00.npy'
+lm_flux         = 'lcb97_p00_reform.npy'
+wr_suffix       = 'Z020'
 
-#[colors] #Default theme colors
-#default.bg = '#FFFFFF'
-#default.fg = '#000000'
-#default.cont_band = '#8c564b'
-#default.line_band = '#b5bd61'
-#default.match_line = '#b5bd61'
-#default.peak = '#aa40fc'
-#default.trough = '#7f7f7f'
-#default.profile = '#1f77b4'
-#default.cont = '#ff7f0e'
-#default.error = '#FF0000'
-#default.mask_map = 'viridis'
-#default.comps_map = 'Dark2'
-#default.mask_marker = '#FF0000'
-#default.inspection_positive = '#FFFFFF'
-#default.inspection_negative = '#ff796c' # 'xkcd:salmon'
-#default.fade_fg = "#CCCCCC"
-#default.color_cycle = ['#279e68', '#d62728', '#aa40fc', '#8c564b',  '#e377c2', '#7f7f7f',
-#                       '#b5bd61', '#17becf', '#1f77b4', '#ff7f0e']
-#
-##Dark theme
-#dark.bg = "#2B2B2B"
-#dark.fg = "#CCCCCC"
-#dark.cont_band = '#e7298a'
-#dark.line_band = '#8fff9f'
-#dark.color_cycle = ['#66c2a5', '#fc8d62', '#e68ac3', '#a6d854',  '#ffd92f', '#e5c494',
-#                       '#8dcbe2', '#e7298a', '#332288', '#88ccee']
-#dark.match_line = '#8fff9f'
-#dark.peak = '#aa40fc'
-#dark.trough = '#7f7f7f'
-#dark.profile = '#ddcc77'
-#dark.cont = "#CCCCCC"
-#dark.error = '#FF0000'
-#dark.mask_map = 'viridis'
-#dark.comps_map = 'PuRd'
-#dark.mask_marker = '#FF0000'
-#dark.inspection_positive = "#2B2B2B"
-#dark.inspection_negative = '#840000'
-#dark.fade_fg = "#73879B"
+[stellar.ssp.pystarburst99.LMC]
+folder          = 'Z006_pySB99_files'
+minimum_wr_mass = 25.0
+mass_grid       = [300, 250, 180, 120, 85, 60, 40, 32, 25, 20, 15, 12, 9, 7, 5, 4, 3, 2.5, 2, 1.7, 1.5, 1.35, 1.25, 1.1, 1, 0.9, 0.8]
+tracks_v00      = 'Z006v00_VMS_tracks.npy'
+tracks_v40      = 'Z006v40_VMS_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z008_tst.dat'
+ifa_line        = 'ifa_line_m04_reform.npy'
+ifa_cont        = 'ifa_cont_m04_reform.npy'
+ifa_params      = 'spec_params_ifa_line_m04.npy'
+lm_params       = 'spec_params_lowmassm04.npy'
+lm_flux         = 'lcb97_m04_reform.npy'
+wr_suffix       = 'Z008'
 
-#[matplotlib] # Figure format
-#default."figure.dpi" = 150
-#default."figure.figsize" = [8, 5]
-#default."axes.titlesize" = 14
-#default."axes.labelsize" = 14
-#default."legend.fontsize" = 12
-#default."xtick.labelsize" = 13
-#default."ytick.labelsize" = 13
-#
-#high_res."figure.dpi" = 300
-#high_res."figure.figsize" = [11, 6]
-#high_res."axes.titlesize" = 14
-#high_res."axes.labelsize" = 14
-#high_res."legend.fontsize" = 12
-#high_res."xtick.labelsize" = 12
-#high_res."ytick.labelsize" = 12
-#
-#dark."figure.facecolor" = "#2B2B2B"
-#dark."axes.facecolor" = "#2B2B2B"
-#dark."axes.edgecolor" = "#CCCCCC"
-#dark."axes.labelcolor" = "#CCCCCC"
-#dark."xtick.labelcolor" = "#CCCCCC"
-#dark."ytick.labelcolor" = "#CCCCCC"
-#dark.'xtick.color'= "#CCCCCC"
-#dark.'ytick.color'= "#CCCCCC"
-#dark."text.color" = "#CCCCCC"
-#dark."legend.edgecolor" = "inherit"
-#dark."legend.facecolor" = "inherit"
-#
-## Traces plot
-#traces."axes.labelsize" = 14
-#traces."ytick.labelsize" = 8
-#traces."xtick.labelsize" = 8
-#
-## Lines comparison plot
-#flux_grid.'axes.titlesize' = 14
-#flux_grid.'xtick.labelsize' = 8
-#flux_grid.'ytick.labelsize' = 3
-#
-## # Declare figure format
-## size_dict = {'figure.figsize': (22, 9), 'axes.titlesize': 14, 'axes.labelsize': 10, 'legend.fontsize': 10,
-##              'xtick.labelsize': 8, 'ytick.labelsize': 3}
-## size_dict.update(plot_conf)
-## rcParams.update(size_dict)
-#
-## Cube interactive
-#cube_interactive.'figure.figsize' = [16, 8]
-#cube_interactive.'axes.titlesize' = 12
-#cube_interactive.'legend.fontsize' = 12
-#cube_interactive.'axes.labelsize' = 12
-#cube_interactive.'xtick.labelsize' = 10
-#cube_interactive.'ytick.labelsize' = 10
+[stellar.ssp.pystarburst99.SMC]
+folder          = 'Z002_pySB99_files'
+minimum_wr_mass = 84.0
+mass_grid       = [120, 85, 60, 40, 32, 25, 20, 15, 12, 9, 7, 5, 4, 3, 2.5, 2, 1.7, 1.5, 1.35, 1.25, 1.1, 1, 0.9, 0.8]
+tracks_v00      = 'Z002v00_tracks.npy'
+tracks_v40      = 'Z002v40_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z004_tst.dat'
+ifa_line        = 'ifa_line_m07_reform_new.npy'
+ifa_cont        = 'ifa_cont_m07_reform_new.npy'
+ifa_params      = 'spec_params_ifa_line_m07_new.npy'
+lm_params       = 'spec_params_lowmassm07.npy'
+lm_flux         = 'lcb97_m07_reform.npy'
+wr_suffix       = 'Z004'
+
+[stellar.ssp.pystarburst99.IZw18]
+folder          = 'Z0004_pySB99_files'
+minimum_wr_mass = 84.0
+mass_grid       = [120, 85, 60, 40, 32, 25, 20, 15, 12, 9, 7, 5, 4, 3, 2.5, 2, 1.7]
+tracks_v00      = 'Z0004v00_tracks.npy'
+tracks_v40      = 'Z0004v40_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z001_tst.dat'
+ifa_line        = 'ifa_line_m13_reform.npy'
+ifa_cont        = 'ifa_cont_m13_reform.npy'
+ifa_params      = 'spec_params_ifa_line_m13.npy'
+lm_params       = 'spec_params_lowmassm13.npy'
+lm_flux         = 'lcb97_m13_reform.npy'
+wr_suffix       = 'Z001'
+
+[stellar.ssp.pystarburst99.XMP]
+folder          = 'Z00001_pySB99_files'
+minimum_wr_mass = 84.0
+mass_grid       = [500, 300, 200, 150, 120, 85, 60, 40, 30, 25, 20, 15, 12, 9, 7, 5, 4, 3, 2.5, 2, 1.7]
+tracks_v00      = 'Z00001v00_tracks.npy'
+tracks_v40      = 'Z00001v40_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z001_tst.dat'
+ifa_line        = 'ifa_line_m13_reform.npy'
+ifa_cont        = 'ifa_cont_m13_reform.npy'
+ifa_params      = 'spec_params_ifa_line_m13.npy'
+lm_params       = 'spec_params_lowmassm13.npy'
+lm_flux         = 'lcb97_m13_reform.npy'
+wr_suffix       = 'Z001'
+
+[stellar.ssp.pystarburst99.Z0]
+folder          = 'Z00_pySB99_files'
+minimum_wr_mass = 84.0
+mass_grid       = [300, 250, 120, 85, 60, 40, 30, 20, 15, 12, 9, 7, 5, 4, 3, 2.5, 2, 1.7]
+tracks_v00      = 'Z00v00_tracks.npy'
+tracks_v40      = 'Z00v40_tracks.npy'
+wm_ob           = 'WMbasic_OB_Z001_tst.dat'
+ifa_line        = 'ifa_line_m13_reform.npy'
+ifa_cont        = 'ifa_cont_m13_reform.npy'
+ifa_params      = 'spec_params_ifa_line_m13.npy'
+lm_params       = 'spec_params_lowmassm13.npy'
+lm_flux         = 'lcb97_m13_reform.npy'
+wr_suffix       = 'Z001'
+
+
 
 [latex_param_notation]
 temp_low="$Te_{low}(K)$"
