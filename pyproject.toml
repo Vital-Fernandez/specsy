@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy"
-version = "0.9.0"
+version = "0.9.1"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = {text = "GPL-3.0-or-later"}
@@ -14,24 +14,24 @@ classifiers = ["License :: OSI Approved :: GNU General Public License v3 (GPLv3)
 authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
 description = "Model fitting package for the chemical analysis of astronomical spectra"
 
-dependencies = ["arviz~=1.2.0",
-                "corner~=2.2.3",
-                "h5netcdf~=1.8.1",
-                "jax~=0.10.2",
-                "jaxlib~=0.10.2",
-                "pyneb==1.1.30",
-                "lime-stable[full]~=2.4.1",
+dependencies = ["arviz>=1.2",
+                "corner>=2.2",
+                "h5netcdf>=1.8",
+                "jax>=0.10",
+                "jaxlib>=0.10",
+                "pyneb>=1.1.30",
+                "lime-stable[full]~=2.4.2",
                 "aspect-stable~=0.8.0",
                 "innate-stable~=0.2.2",
                 "pymc[nutpie]~=6.0.1",
-                "toml~=0.10.2",
-                "tomlkit==0.15.0",
-                "xarray~=2026.4.0"]
+                "toml>=0.10",
+                "tomlkit>=0.15",
+                "xarray>=2026.4"]
 
 [project.optional-dependencies]
-full = ["numpyro~=0.21.0",
-        "blackjax~=1.5",
-        "numba~=0.65.1"]
+full = ["numpyro>=0.21.0",
+        "blackjax>=1.5",
+        "numba>=0.65"]
 
 docs = ["sphinx~=9.1.0",
         "sphinx-rtd-theme~=3.1",
