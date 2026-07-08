@@ -10,15 +10,13 @@ of stellar and gas continua.
 
 ## Installation
 
-Install directly from [PyPI](https://pypi.org/project/specsy/) with all the dependencies:
+Install directly from [PyPI](https://pypi.org/project/specsy/) with all the dependencies 
+(depending on the OS the ```"specsy[full]"``` must be quoted):
 
 ```bash
 pip install specsy[full]
-
-or
-
-pip install "specsy[full]"
 ```
+
 
 To upgrade to the latest version:
 
@@ -26,12 +24,11 @@ To upgrade to the latest version:
 pip install --upgrade specsy
 ```
 
-# Citing
+## Citing
 
-Previous work involving the results and development of SpecSy can be found in [Fernández et al (2019)](https://doi.org/10.1093/mnras/stz1433), 
-[Fernández et al (2021)](https://doi.org/10.1093/mnras/stab3150), [Fernández et al (2023)](https://doi.org/10.1093/mnras/stad198)
-and [del Valle-Espinosa et al (2025)](https://arxiv.org/abs/2508.18160).
-
+Previous work involving the results and development of SpecSy can be found in [Fernández et al. (2019)](https://doi.org/10.1093/mnras/stz1433),
+[Fernández et al. (2021)](https://doi.org/10.1093/mnras/stab3150), [Fernández et al. (2023)](https://doi.org/10.1093/mnras/stad198),
+and [del Valle-Espinosa et al. (2025)](https://arxiv.org/abs/2508.18160).
 
 ## Development
 
