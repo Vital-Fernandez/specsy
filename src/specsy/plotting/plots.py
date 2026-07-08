@@ -1,16 +1,17 @@
-import lime
 import numpy as np
 import arviz as az
 
-from lime.plotting.plots import save_close_fig_swicth
 from pathlib import Path
+from matplotlib import pyplot as plt, gridspec, rc_context, cm, colors
+
+import lime
+from innate import load_dataset
+from lime import label_decomposition
+from lime.plotting.plots import save_close_fig_swicth
 from lime.plotting.format import Themer
-from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
 from specsy import _setup_cfg
 from specsy.tools import linear_regression
 from specsy.io import SpecSyError, specsy_cfg
-from lime import load_cfg, Line, label_decomposition
-from innate import load_dataset
 
 try:
     from bokeh.plotting import figure, show, save
@@ -19,12 +20,16 @@ try:
 except ImportError:
     bokeh_check = False
 
-import corner
+try:
+    import corner
+except ImportError:
+    corner_check = False
 
 
 # Formatting object
 theme_file = Path(__file__).resolve().parent/'specsy_theme.toml'
 theme = Themer.from_toml(theme_file)
+
 
 def extinction_gradient(cHbeta, cHbeta_err, frame, rel_Hbeta=True, fname=None, fig_cfg=None, ax_cfg=None, return_fig=False):
 
@@ -304,7 +309,10 @@ def plot_flux_grid(fname, output_address=None, line_list=None, obs_values=None, 
     display_check = True if in_fig is None else False
 
     # Load the inference data
-    infer_db = load_inference_data(fname)
+    if isinstance(fname, (str, Path)):
+        infer_db = az.from_netcdf(fname)
+    else:
+        infer_db = fname
 
     # Recover the fluxes
     input_traces = infer_db.posterior.calcFluxes_Op.values
@@ -399,94 +407,103 @@ def plot_flux_grid(fname, output_address=None, line_list=None, obs_values=None, 
 
 
 def plot_corner_matrix(fname, output_address=None, params_list=None, true_values=None, in_fig=None, fig_cfg=None,
-                      ax_cfg=None, maximize=False):
+                       ax_cfg=None, maximize=False):
 
-    # Display check for the user figures
-    display_check = True if in_fig is None else False
+    if corner_check:
 
-    # Load the inference data
-    infer_db = load_inference_data(fname)
+        # Display check for the user figures
+        display_check = True if in_fig is None else False
 
-    # Set the parameters to plot
-    chain_params = np.array(list(infer_db.posterior.data_vars))
-    if params_list is not None:
-        idcs_plot = np.isin(chain_params, params_list)
+        # Load the inference data
+        if isinstance(fname, (str, Path)):
+            infer_db = az.from_netcdf(fname)
+        else:
+            infer_db = fname
+
+        # Set the parameters to plot
+        chain_params = np.array(list(infer_db.posterior.data_vars))
+        if params_list is not None:
+            idcs_plot = np.isin(chain_params, params_list)
+        else:
+            idcs_plot = np.char.find(chain_params, '_Op') == -1
+        input_params = chain_params[idcs_plot]
+
+        # Check for true values
+        if true_values is None:
+            if 'true_values' in infer_db:
+                true_values = dict(zip(infer_db.true_values.parameters.values, infer_db.true_values.magnitude.values))
+
+        # Prepare corner arrays
+        labels_list, traces_list = [], []
+        true_array = None if true_values is None else []
+
+        for i, param in enumerate(input_params):
+            labels_list.append(_setup_cfg['latex'].get(param, param))
+            traces_list.append(infer_db.posterior[param].values.reshape(-1))
+
+            if true_array is not None:
+                true_array.append(true_values[param])
+
+        # Change to numpy and transpose
+        labels_list, traces_list = np.array(labels_list), np.array(traces_list).T
+        true_array = None if true_array is None else np.array(true_array)
+
+        # Set the plot format where the user's overwrites the default
+        plot_cfg = theme.fig_defaults(fig_cfg)
+        # ax_cfg = theme.ax_defaults()
+
+        # Initialize the figure
+        with (rc_context(plot_cfg)):
+
+            # Generate the plot
+            corner.corner(traces_list, fontsize=30, labels=labels_list, quantiles=[0.16, 0.5, 0.84],
+                                show_titles=True, title_args={"fontsize": 200}, truths=true_array,
+                                truth_color=theme.colors['fg'], title_fmt='0.3f', fig=in_fig)
+
+            # Show or save the image
+            in_fig = save_close_fig_swicth(output_address, 'tight', in_fig, maximize, display_check)
+
+
+        # Dark models
+        # # Declare figure format
+        # background = np.array((43, 43, 43)) / 255.0
+        # foreground = np.array((179, 199, 216)) / 255.0
+        #
+        # figConf = {'text.color': foreground,
+        #            'figure.figsize': (16, 10),
+        #            'figure.facecolor': background,
+        #            'axes.facecolor': background,
+        #            'axes.edgecolor': foreground,
+        #            'axes.labelcolor': foreground,
+        #            'axes.labelsize': 30,
+        #            'xtick.labelsize': 12,
+        #            'ytick.labelsize': 12,
+        #            'xtick.color': foreground,
+        #            'ytick.color': foreground,
+        #            'legend.edgecolor': 'inherit',
+        #            'legend.facecolor': 'inherit',
+        #            'legend.fontsize': 16,
+        #            'legend.loc': "center right"}
+        # rcParams.update(figConf)
+        # # Generate the plot
+        # mykwargs = {'no_fill_contours':True, 'fill_contours':True}
+        # self.Fig = corner.corner(traces_array[:, :], fontsize=30, labels=labels_list, quantiles=[0.16, 0.5, 0.84],
+        #                          show_titles=True, title_args={"fontsize": 200},
+        #                          truth_color='#ae3135', title_fmt='0.3f', color=foreground, **mykwargs)#, hist2d_kwargs = {'cmap':'RdGy',
+        #                                                                                    #'fill_contours':False,
+        #                                                                                    #'plot_contours':False,
+        #                                                                                    #'plot_datapoints':False})
+
+
+
+        # plt.savefig(plot_address, dpi=100, bbox_inches='tight')
+        # plt.close(fig)
+
     else:
-        idcs_plot = np.char.find(chain_params, '_Op') == -1
-    input_params = chain_params[idcs_plot]
-
-    # Check for true values
-    if true_values is None:
-        if 'true_values' in infer_db:
-            true_values = dict(zip(infer_db.true_values.parameters.values, infer_db.true_values.magnitude.values))
-
-    # Prepare corner arrays
-    labels_list, traces_list = [], []
-    true_array = None if true_values is None else []
-
-    for i, param in enumerate(input_params):
-        labels_list.append(_setup_cfg['latex'].get(param, param))
-        traces_list.append(infer_db.posterior[param].values.reshape(-1))
-
-        if true_array is not None:
-            true_array.append(true_values[param])
-
-    # Change to numpy and transpose
-    labels_list, traces_list = np.array(labels_list), np.array(traces_list).T
-    true_array = None if true_array is None else np.array(true_array)
-
-    # Set the plot format where the user's overwrites the default
-    plot_cfg = theme.fig_defaults(fig_cfg)
-    # ax_cfg = theme.ax_defaults()
-
-    # Initialize the figure
-    with (rc_context(plot_cfg)):
-
-        # Generate the plot
-        corner.corner(traces_list, fontsize=30, labels=labels_list, quantiles=[0.16, 0.5, 0.84],
-                            show_titles=True, title_args={"fontsize": 200}, truths=true_array,
-                            truth_color=theme.colors['fg'], title_fmt='0.3f', fig=in_fig)
-
-        # Show or save the image
-        in_fig = save_close_fig_swicth(output_address, 'tight', in_fig, maximize, display_check)
-
-
-    # Dark models
-    # # Declare figure format
-    # background = np.array((43, 43, 43)) / 255.0
-    # foreground = np.array((179, 199, 216)) / 255.0
-    #
-    # figConf = {'text.color': foreground,
-    #            'figure.figsize': (16, 10),
-    #            'figure.facecolor': background,
-    #            'axes.facecolor': background,
-    #            'axes.edgecolor': foreground,
-    #            'axes.labelcolor': foreground,
-    #            'axes.labelsize': 30,
-    #            'xtick.labelsize': 12,
-    #            'ytick.labelsize': 12,
-    #            'xtick.color': foreground,
-    #            'ytick.color': foreground,
-    #            'legend.edgecolor': 'inherit',
-    #            'legend.facecolor': 'inherit',
-    #            'legend.fontsize': 16,
-    #            'legend.loc': "center right"}
-    # rcParams.update(figConf)
-    # # Generate the plot
-    # mykwargs = {'no_fill_contours':True, 'fill_contours':True}
-    # self.Fig = corner.corner(traces_array[:, :], fontsize=30, labels=labels_list, quantiles=[0.16, 0.5, 0.84],
-    #                          show_titles=True, title_args={"fontsize": 200},
-    #                          truth_color='#ae3135', title_fmt='0.3f', color=foreground, **mykwargs)#, hist2d_kwargs = {'cmap':'RdGy',
-    #                                                                                    #'fill_contours':False,
-    #                                                                                    #'plot_contours':False,
-    #                                                                                    #'plot_datapoints':False})
-
-
-
-    # plt.savefig(plot_address, dpi=100, bbox_inches='tight')
-    # plt.close(fig)
+        SpecSyError(f'Please install corner to generate the scatter plot matrix')
 
     return in_fig
+
 
 def az_trace(sampling_result, fname=None, in_fig=None, var_list=None, exclude=['theo_flux'], var_latex=specsy_cfg['latex_param_notation'],
              fig_cfg=None, maximize=False, display_check=True):

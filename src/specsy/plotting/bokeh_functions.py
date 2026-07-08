@@ -5,11 +5,9 @@ import lime
 from pathlib import Path
 from specsy.plotting.plots import theme
 from specsy.io import SpecSyError, specsy_cfg
-from lime.plotting.bokeh_plots import update_bokeh_figure, save_close_fig_swicth as bokeh_fig_switch
-
+from lime.plotting.bokeh_plots import update_bokeh_figure
 from itertools import chain
-from matplotlib import pyplot as plt, rc_context
-from matplotlib import pyplot as plt, gridspec, patches, rc_context, cm, colors
+from matplotlib import pyplot as plt, rc_context, cm, colors
 
 _logger = logging.getLogger('SpecSy')
 
@@ -26,11 +24,10 @@ except ImportError:
 # Sentinel object for non input figures
 _NO_FIG = object()
 
+
+
 def rgba_to_hex(rgba):
     return '#{:02x}{:02x}{:02x}'.format(int(rgba[0]*255), int(rgba[1]*255), int(rgba[2]*255))
-
-# Sentinel object for non input figures
-_NO_FIG = object()
 
 
 def bokeh_trace(sampling_result, fname=None, var_list=None, exclude=None, var_latex=None, fig_cfg=None, in_fig=_NO_FIG):
@@ -86,6 +83,7 @@ def bokeh_trace(sampling_result, fname=None, var_list=None, exclude=None, var_la
             show(fig_arr)
 
     return fig_arr
+
 
 
 def bokeh_scatter_matrix(sampling_result, fname=None, var_list=None, exclude=None, var_latex=None, fig_cfg=None,

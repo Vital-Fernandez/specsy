@@ -1,3 +1,4 @@
+from time import time
 import pymc as pm
 import numpy as np
 from pytensor import tensor as tt
@@ -183,15 +184,40 @@ def direct_method_multi_region_orig(inputs, emis_interp, prior_dict, tem_EQDB, d
     return model
 
 
-def run_model(model, draws=1000, tune=2000, target_accept=0.8, chains=8, cores=8, nuts_sampler='numpyro',
-              callback=None):
+def run_model(model, draws=1000, tune=2000, target_accept=0.8, chains=8, cores=8,
+              nuts_sampler='numpyro', callback=None):
 
-    nuts_sampler_kwargs = None if nuts_sampler != 'nutpie' else {"backend": "jax", 'gradient_backend': "jax"}
+    # nuts_sampler_kwargs = None if nuts_sampler != 'nutpie' else {"backend": "jax", 'gradient_backend': "jax"}
+
+
+    '''
+        nuts_sampler : str, optional
+        Which NUTS implementation to run. One of ["pymc", "nutpie", "blackjax", "numpyro"].
+        This requires the chosen sampler to be installed.
+        All samplers, except "pymc", require the full model to be continuous.
+        
+        If ``None`` (default), "nutpie" is used if installed and can be compiled to the desired backend.
+            backend: str, optional.
+        Which computational backend to use. Recommended to be one of "numba", "c", and "jax".
+        May require installing extra dependencies.
+        
+        
+        
+    '''
 
     with model:
+        time_it = time()
         trace = pm.sample(draws=draws, tune=tune, target_accept=target_accept, chains=chains, cores=cores,
-                          nuts_sampler=nuts_sampler,
-                          # callback=callback,
-                          progressbar='combined', nuts_sampler_kwargs=nuts_sampler_kwargs)
+                          nuts_sampler=nuts_sampler, progressbar='combined')
+        time_it = time() - time_it
+        print(f'-- Complete: {time_it:.1f} seconds' if time_it < 60 else f'Sampling time: {time_it / 60:.1f} minutes')
+
+        print(f'- Drawing prior samples')
+        prior = pm.sample_prior_predictive(draws=1000)
+
+    # Save the prior
+    trace['prior'] = prior['prior']
+    if 'prior_predictive' in prior.children:
+        trace['prior_predictive'] = prior['prior_predictive']
 
     return trace

@@ -1,45 +1,33 @@
 import arviz as az
-import lime
-from matplotlib import pyplot as plt
-import specsy.plotting.plots as sy_plots
-import specsy.plotting.bokeh_functions as sy_bokeh
-import specsy as sy
-from bokeh.plotting import show as bokeh_show
+import specsy.plotting.arviz_functions as sy_plots
+from specsy.plotting.arviz_functions import plot_fitted_fluxes, plot_fitted_params, plot_fitted_pairs, plot_prior_posterior, plot_traces
 
 
+# Theme settings
 sy_plots.theme.set_style('dark')
 
-# Synthetic region base parameters
+# Inputs
 cfg_fname = f'./synthetic_spectrum_region_v0.toml'
-lines_fname = f'./synthetic_spectrum_lines_region_v3.txt'
-lines_struc_fname = f'./synthetic_spectrum_line_structure_v3.txt'
+lines_struc_fname = f'./synthetic_spectrum_line_structure_v6.txt'
 emis_fname = f'./emissivity_grids_pyneb_1.1.30.nc'
-trace_fname = f'./synthetic_spectrum_trace_v4.nc'
+trace_fname = f'./synthetic_spectrum_trace_v6.nc'
+
+# Outputs
 plot_trace = f'/home/vital/Dropbox/Astrophysics/Tools/SpectralSynthesis/Tutorial/trace_plot.png'
 plot_sm = f'/home/vital/Dropbox/Astrophysics/Tools/SpectralSynthesis/Tutorial/sm_plot.png'
 plot_flug_grid = f'/home/vital/Dropbox/Astrophysics/Tools/SpectralSynthesis/Tutorial/sm_plot.png'
 
-# Load the data
-spec_cfg = lime.load_cfg(cfg_fname)
-structure_df = lime.load_frame(lines_fname)
-trace = az.from_netcdf(trace_fname)
+# Load the fitting data
+trace_data = az.from_netcdf(trace_fname)
 
-# # Trace plot
-# fig_cfg = {'width': 200, 'height': 100}
-# fig = sy_bokeh.bokeh_trace(trace, in_fig=None, fig_cfg=fig_cfg)
-# bokeh_show(fig)
+# Plots
+plot_fitted_fluxes(trace_fname)
 
-# # Scatter plot matrix
-# fig_cfg = {}
-# fig = sy_bokeh.bokeh_scatter_matrix(trace, in_fig=None, fig_cfg=fig_cfg)
-# bokeh_show(fig)
+plot_fitted_params(trace_fname)
 
-# Flux grid
-fig_cfg = None
-fig = sy_bokeh.bokeh_flux_grid(trace, in_fig=None, fig_cfg=fig_cfg)
-bokeh_show(fig)
+plot_fitted_pairs(trace_fname, var_names=['temp_high', 'temp_low', 'den_low', 'O2', 'O3', 'S2'])
 
-az.summary(az.summary(trace, stat_focus="median"))
+plot_prior_posterior(trace_fname)
 
-# sy_plots.az_scatter_matrix(trace, plot_sm)
-# sy_plots.az_flux_grid(trace, plot_flug_grid, structure_df, n_cols=4)
+plot_traces(trace_fname)
+

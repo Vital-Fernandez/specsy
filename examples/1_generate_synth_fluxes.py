@@ -1,6 +1,6 @@
 import numpy as np
 import specsy as sy
-from specsy.models import TEM_FUNC_DICT, _DEN_FUNC_DICT
+from specsy.models import TEM_FUNC_DICT, DEN_FUNC_DICT
 from specsy.models.extinction import flambda_calc
 
 from specsy.operations.interpolation import compile_bilinear_interp
@@ -8,7 +8,7 @@ from specsy.observations import IonizationStructure
 
 # Synthetic region base parameters
 cfg_fname = f'./synthetic_spectrum_region_v0.toml'
-lines_fname = f'./synthetic_spectrum_lines_region_v3.txt'
+lines_fname = f'./synthetic_spectrum_lines_region_v5.txt'
 
 spec_cfg = sy.load_cfg(cfg_fname)
 true_params = spec_cfg['synth_spectrum']['true_params']
@@ -54,7 +54,7 @@ for i in range_arr:
 
     # Compute the emissivity
     tem = true_params[Tem_label_arr[i]] if temp_eq_check[i] else TEM_FUNC_DICT[tem_eq_arr[i]](true_params[Tem_label_arr[i]])
-    den = true_params[den_label_arr[i]] if den_eq_check[i] else _DEN_FUNC_DICT[den_eq_arr[i]](true_params[den_label_arr[i]])
+    den = true_params[den_label_arr[i]] if den_eq_check[i] else DEN_FUNC_DICT[den_eq_arr[i]](true_params[den_label_arr[i]])
     emis = interp_dict_np[line_arr[i]](tem, den)
 
     # Compute the flux

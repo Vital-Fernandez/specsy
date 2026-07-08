@@ -1,29 +1,23 @@
-# Specsy
-
 <p align="center">
-  <img src="https://github.com/Vital-Fernandez/specsy/blob/7e35568f6d154486f5603e94fe39dd08e5e54834/src/specsy/resources/images/Specsy_logo_transparent_dark.PNG" alt="Specsy Logo" width="300"/>
+  <img src="https://raw.githubusercontent.com/Vital-Fernandez/specsy/90d1e98719ba1c9529e691f5b9012e0e884d3bf4/src/specsy/resources/images/Specsy_logo_transparent_dark.PNG" alt="Spectra Synthesis (SpecSy)" width="400"/>
 </p>
 
-A Python library for the analysis of astronomical spectra. Specsy includes a Bayesian sampler for the
+A Python library for the analysis of astronomical spectra. SpecSy includes a Bayesian sampler for the
 direct method parameter space, tools to fit photoionization model grids, and utilities for the analysis
 of stellar and gas continua.
 
-> **Note:** This package is currently in an alpha release. The preliminary documentation can be found at [ReadTheDocs](https://specsy.readthedocs.io/).
+> **Warning:** This package is currently in an alpha release.
 
 ## Installation
 
-Install directly from [PyPI](https://pypi.org/project/specsy/):
+Install directly from [PyPI](https://pypi.org/project/specsy/) with all the dependencies:
 
 ```bash
-pip install specsy
-```
+pip install specsy[full]
 
-For the recommended conda environment with PyMC sampler backends:
+or
 
-```bash
-conda create -c conda-forge -n specsy python=3.13 nutpie pymc numba numpyro blackjax
-conda activate specsy
-pip install specsy
+pip install "specsy[full]"
 ```
 
 To upgrade to the latest version:
@@ -31,6 +25,13 @@ To upgrade to the latest version:
 ```bash
 pip install --upgrade specsy
 ```
+
+# Citing
+
+Previous work involving the results and development of SpecSy can be found in [Fernández et al (2019)](https://doi.org/10.1093/mnras/stz1433), 
+[Fernández et al (2021)](https://doi.org/10.1093/mnras/stab3150), [Fernández et al (2023)](https://doi.org/10.1093/mnras/stad198)
+and [del Valle-Espinosa et al (2025)](https://arxiv.org/abs/2508.18160).
+
 
 ## Development
 

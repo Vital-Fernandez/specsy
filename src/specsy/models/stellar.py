@@ -756,6 +756,9 @@ class StellarBinaries:
             if self.source == 'bpass':
                 BPASS_Z_KEYS = specsy_cfg['stellar']['ssp']['BPASS']['z_keys']
                 ext_map = {value: key for key, value in BPASS_Z_KEYS.items()}
+            elif self.source == 'pystarburst99':
+                pySB99_Z_KEYS = specsy_cfg['stellar']['ssp']['pystarburst99']['z_keys']
+                ext_map = {value: key for key, value in pySB99_Z_KEYS.items()}
             else:
                 raise SpecSyError(f'Binaries source "{self.source}" does not have a metallicity header map')
 

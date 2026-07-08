@@ -1,18 +1,16 @@
 import numpyro
 
 # Number of cores available
-numpyro.set_host_device_count(8)
+numpyro.set_host_device_count(12)
 
 import jax
 
 # Selecting CPU sampling with JAX
 jax.config.update("jax_platform_name", "cpu")
 
-from astropy.io import fits
-from pathlib import Path
 import lime
 import specsy as sy
-
+from specsy.plotting.arviz_functions import plot_fitted_fluxes, plot_fitted_params, plot_fitted_pairs
 
 
 cfg_fname = './synthetic_spectrum_region_v0.toml'
@@ -34,38 +32,19 @@ line_list = ['H1_4861A', 'H1_4340A', 'H1_6563A',
              'S2_6716A', 'S2_6731A',
              'S3_6312A', 'S3_9068A', 'S3_9530A']
 
+# Region line structure file
+structure_fname = f'./real_spectrum_region_structure_v0.txt'
 obj.infer.direct_method.prepare_inputs(emissivity_source=emis_fname, line_list=line_list, prior_cfg=cfg['direct_method_priors'])
+obj.infer.direct_method.save_line_structure(structure_fname)
 
-obj.infer.direct_method.save_line_structure('/home/vital/Dropbox/Astrophysics/Tools/SpectralSynthesis/Tutorial/synthetic_line_structure_sdss.txt')
-
+# Run the fitting
 obj.infer.direct_method.run()
 
-obj.infer.direct_method.plot_trace()
+# Save the fitting trace
+trace_fname = f'./real_spectrum_trace_v0.nc'
+obj.infer.direct_method.save_trace(trace_fname)
 
-
-
-
-
-
-# lime.theme.set_style('dark')
-#
-# import aspect
-# fname = Path('/home/vital/Downloads/espectros_regionesHII_UVES (2)/fc_1D_DIC2_437_NGC3576_5400s.fits')
-# fname = Path('/home/vital/Downloads/espectros_regionesHII_UVES (2)/fc_1D_DIC2_437_NGC3576_5400s.fits')
-# fname = Path('/home/vital/Downloads/espectros_regionesHII_UVES (2)/fc_1D_DIC2_860_NGC3576_5400s.fits')
-# fname = Path('/home/vital/Downloads/espectros_regionesHII_UVES (2)/fc_1D_DIC2_860_S311_5400s.fits')
-# fname = Path('/home/vital/Downloads/espectros_regionesHII_UVES (2)/fc_1D_DIC1_580_NGC3576_1800s.fits')
-#
-# folder = Path('/home/vital/Downloads/espectros_regionesHII_UVES (2)')
-# fits_files = list(folder.glob("*.fits"))
-#
-# for i, fname in enumerate(fits_files):
-#     if i == 2:
-#         print(i, fname.name)
-#         spec = lime.Spectrum.from_file(fname, instrument='ISIS', redshift=0)
-#         bands = spec.retrieve.lines_frame(band_vsigma=30)
-#         spec.plot.spectrum(bands=None, log_scale=False)
-
-
-
-
+# Plots
+plot_fitted_fluxes(trace_fname)
+plot_fitted_params(trace_fname)
+plot_fitted_pairs(trace_fname, var_names=['temp_high', 'temp_low', 'den_low', 'O2', 'O3', 'S2'])

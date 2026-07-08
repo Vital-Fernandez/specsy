@@ -548,19 +548,35 @@ class DirectMethod:
                                                 tem_EQDB=TEM_FUNC_DICT, den_EQDB=DEN_FUNC_DICT)
 
         # Run the model
-        print(f'- Launching sampler:')
+        print(f'- Launching sampler ({nuts_sampler}):')
         self.trace = run_model(self.model,  draws=draws, tune=tune, chains=chains, cores=cores, target_accept=target_accept,
                                nuts_sampler=nuts_sampler, callback=callback)
+
+        # # Remove the normalization from the fluxes
+        # if linear_scale_results:
+        #     self.trace.posterior['theo_flux'] = np.power(10, self.trace.posterior['theo_flux'])
+        #     self.trace.observed_data['likelihood'] = np.power(10, self.trace.observed_data['likelihood'])
+        #
+        # # Remove the log scale for the helium abundaces
+        # for helium in ['He1', 'He2']:
+        #     if helium in self.inputs.ion_arr:
+        #         self.trace.posterior[helium] = np.power(10, self.trace.posterior[helium])
 
         # Remove the normalization from the fluxes
         if linear_scale_results:
             self.trace.posterior['theo_flux'] = np.power(10, self.trace.posterior['theo_flux'])
             self.trace.observed_data['likelihood'] = np.power(10, self.trace.observed_data['likelihood'])
+            if 'prior' in self.trace.groups:
+                self.trace.prior['theo_flux'] = np.power(10, self.trace.prior['theo_flux'])
+            if 'prior_predictive' in self.trace.groups:
+                self.trace.prior_predictive['likelihood'] = np.power(10, self.trace.prior_predictive['likelihood'])
 
-        # Remove the log scale for the helium abundaces
+        # Remove the log scale for the helium abundances
         for helium in ['He1', 'He2']:
             if helium in self.inputs.ion_arr:
                 self.trace.posterior[helium] = np.power(10, self.trace.posterior[helium])
+                if 'prior' in self.trace.groups():
+                    self.trace.prior[helium] = np.power(10, self.trace.prior[helium])
 
         return
 
@@ -570,7 +586,8 @@ class DirectMethod:
         return
 
     def save_trace(self, fname):
-        az.to_netcdf(self.trace, fname)
+        # az.to_netcdf(self.trace, fname)
+        self.trace.to_netcdf(fname)
 
         return
 
