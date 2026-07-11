@@ -1,3 +1,4 @@
 include src/specsy/*.toml
 include src/specsy/resources
 include src/specsy/plotting/specsy_theme.toml
+include src/lime/resources/emissivity_grids_pyneb_*.txt

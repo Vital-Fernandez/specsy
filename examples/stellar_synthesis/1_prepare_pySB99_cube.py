@@ -63,24 +63,40 @@ with rc_context(plt_cfg):
 
 
 
-# for metallicity in ['XMP']:
-#     data_set = root_folder / f'pySB99_{metallicity}_v0'
-#
-#     fname = data_set/'SED_wavelength.txt'
-#     wave_SED_arr = np.loadtxt(fname)
-#
-#     fname = data_set/'timesteps.txt'
-#     time_arr = np.loadtxt(fname)
-#
-#     fname = data_set/'pySB_SED_stellar_and_nebular.npy'
-#     flux_matrix = np.load(fname)
-#
-#     fname = data_set/'spectrum_wavelength.txt'
-#     wave_arr = np.loadtxt(fname)
-#
-#     fname = data_set/'pySB_hires_spectrum.npy'
-#     flux_matrix_hires = np.load(fname)
-#
-#     fig, ax = plt.subplots()
-#     ax.step(wave_arr, flux_matrix_hires[0, :], label='Hi-Res', where='mid')
-#     plt.show()
+for metallicity in ['XMP']:
+    # data_set = root_folder / f'pySB99_{metallicity}_v0'
+    data_set = root_folder / f'{metallicity}'
+
+    fname = data_set/'SED_wavelength.txt'
+    wave_SED_arr = np.loadtxt(fname)
+
+    fname = data_set/'timesteps.txt'
+    time_arr = np.loadtxt(fname)
+
+    fname = data_set/'pySB_SED_stellar_and_nebular.npy'
+    flux_matrix = np.load(fname)
+
+    fname = data_set/'spectrum_wavelength.txt'
+    wave_arr = np.loadtxt(fname)
+
+    fname = data_set/'pySB_hires_spectrum.npy'
+    flux_matrix_hires = np.load(fname)
+
+    idcs = (wave_SED_arr >= 900) & (wave_SED_arr <= 3000)
+
+
+    with rc_context(lime.theme.fig_defaults()):
+
+        fig, ax = plt.subplots()
+        ax2 = ax.twinx()
+
+        ax.step(wave_SED_arr[idcs], flux_matrix[0, idcs], label='Stellar + Nebular', where='mid')
+        ax2.step(wave_arr, flux_matrix_hires[0, :], label='Hi-Res', where='mid', color='C1')
+
+        # Combine legends from both axes
+        handles1, labels1 = ax.get_legend_handles_labels()
+        handles2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(handles1 + handles2, labels1 + labels2)
+        ax.set_title(f'XMP metallicity with log(age) = {np.log10(time_arr[0])}')
+
+        plt.show()

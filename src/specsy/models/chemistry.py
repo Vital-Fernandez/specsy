@@ -11,7 +11,7 @@ from lime import label_decomposition, Line, lines_frame, normalize_fluxes
 from pathlib import Path
 from innate import load_dataset
 
-from specsy.io import SpecSyError, specsy_cfg
+from specsy.io import SpecSyError, specsy_cfg, load_emis_grid
 from specsy.tools import truncated_gaussian, flux_distribution
 from specsy.operations.interpolation import compile_bilinear_interp
 from specsy.models.extinction import flambda_calc
@@ -399,10 +399,10 @@ class DirectMethod:
             raise SpecSyError(f'The normalization line "{self.norm_line}" is not in the input lines frame')
 
         # Prepare the emissivity interpolator
-        if isinstance(emissivity_source, (str, Path)):
-            emis_dataset = load_dataset(emissivity_source)
+        if emissivity_source is None:
+            emis_dataset = load_emis_grid()
         else:
-            emis_dataset = emissivity_source
+            emis_dataset = load_dataset(emissivity_source)
         self.emis_interp = compile_bilinear_interp(emis_dataset)
 
         # Prepare the prior cfg

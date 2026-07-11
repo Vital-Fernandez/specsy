@@ -3,7 +3,7 @@ import numpy as np
 import pytensor.tensor as tt
 from pytensor import function as pt_function
 
-from specsy.io import load_HII_CHI_MISTRY_grid
+from specsy.io import load_HII_CHI_MISTRY_grid, load_emis_grid
 
 
 def make_bilinear_interp(x_grid, y_grid, z_grid):
@@ -40,7 +40,10 @@ def make_bilinear_interp(x_grid, y_grid, z_grid):
     return interp
 
 
-def compile_bilinear_interp(emis_dataset, array_mode=False):
+def compile_bilinear_interp(emis_dataset=None, array_mode=False):
+
+    if emis_dataset is None:
+        emis_dataset = load_emis_grid()
 
     interp_dict = {}
     for trans, emis_matrix in emis_dataset[0].items():

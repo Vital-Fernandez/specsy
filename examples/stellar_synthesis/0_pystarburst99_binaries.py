@@ -16,8 +16,8 @@ spectra_library = 'WM'
 rot             = False
 
 # Target metallicities and log-ages
-# Z_list     = ['IZw18', 'SMC', 'LMC', 'MW', 'MWC']   # Z = 0.0004, 0.002, 0.006, 0.014, 0.020
-Z_list       = ['SMC']   # Z = 0.0004, 0.002, 0.006, 0.014, 0.020
+Z_list     = ['IZw18', 'SMC', 'LMC', 'MW', 'MWC']   # Z = 0.0004, 0.002, 0.006, 0.014, 0.020
+# Z_list       = ['SMC']   # Z = 0.0004, 0.002, 0.006, 0.014, 0.020
 log_ages_out = [6.0, 6.602, 6.845, 7.]   # log(yr)
 times_out_yr = 10**np.array(log_ages_out)             # linear years
 

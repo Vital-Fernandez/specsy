@@ -34,10 +34,12 @@ def set_prior(param, prior_dict, abund_type=False, name_param=None, total_region
 
         if param == 'logOH':
             priorFunc = pm.Bound(pm.Normal, lower=7.1, upper=9.1)('logOH', mu=8.0, sigma=1.0, testval=8.1)
-        if param == 'logU':
+        elif param == 'logU':
             priorFunc = pm.Bound(pm.Normal, lower=-4.0, upper=-1.5)('logU', mu=-2.75, sigma=1.5, testval=-2.75)
-        if param == 'logNO':
+        elif param == 'logNO':
             priorFunc = pm.Bound(pm.Normal, lower=-2.0, upper=0.0)('logNO', mu=-1.0, sigma=0.5, testval=-1.0)
+        else:
+            priorFunc = probDist(param, dist_loc, dist_scale) * dist_norm + dist_reLoc
 
     else:
         priorFunc = probDist(param, dist_loc, dist_scale) * dist_norm + dist_reLoc

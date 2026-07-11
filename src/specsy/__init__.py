@@ -22,8 +22,7 @@ __version__ = _setup_cfg['metadata']['version']
 
 from lime import load_cfg as load_cfg, load_frame as load_frame, Line as Line, lines_frame as lines_frame, save_frame as save_frame
 from lime import Spectrum as Spectrum, Cube as Cube
-from innate import load_dataset as load_dataset
-from specsy.io import specsy_cfg as cfg
+from specsy.io import specsy_cfg as cfg, load_emis_grid
 from specsy.observations import Nebula
 from specsy.models.extinction import extinction_coeff_calc
 from specsy.plotting.plots import theme

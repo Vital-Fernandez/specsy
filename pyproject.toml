@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy"
-version = "0.9.2"
+version = "0.10.0"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = {text = "GPL-3.0-or-later"}
@@ -12,6 +12,7 @@ classifiers = ["License :: OSI Approved :: GNU General Public License v3 (GPLv3)
                "Programming Language :: Python :: 3.12"]
 
 authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
+
 description = "Model fitting package for the chemical analysis of astronomical spectra"
 
 dependencies = ["arviz>=1.2",
@@ -22,7 +23,7 @@ dependencies = ["arviz>=1.2",
                 "pyneb>=1.1.30",
                 "lime-stable[full]~=2.4.3",
                 "aspect-stable~=0.8.0",
-                "innate-stable~=0.2.2",
+                "innate-stable~=0.3.0",
                 "pymc[nutpie]~=6.0.1",
                 "toml>=0.10",
                 "tomlkit>=0.15",

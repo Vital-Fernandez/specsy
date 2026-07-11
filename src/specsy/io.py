@@ -21,13 +21,28 @@ FITS_OUTPUTS_EXTENSION = {'parameter_list': '20A',
                           'p84th': 'E',
                           'true': 'E'}
 
+
 # Load lime configuration
 _cfg_file_path = Path(__file__).parent/'specsy.toml'
 specsy_cfg = load_cfg(_cfg_file_path)
 
+
 class SpecSyError(Exception):
     """SpecSy exception function"""
 
+
+_PYNEB_EMIS_GRID = None  # leading underscore: "module-private"
+
+
+def load_emis_grid(fname=None):
+    global _PYNEB_EMIS_GRID
+
+    if _PYNEB_EMIS_GRID is None:
+        if fname is None:
+            fname = Path(__file__).parent / f"resources/data/{specsy_cfg['metadata']['emissivity_fname']}"
+        _PYNEB_EMIS_GRID = load_dataset(fname)
+
+    return _PYNEB_EMIS_GRID
 
 
 def load_HII_CHI_MISTRY_grid(log_scale=False, log_zero_value = -1000):
@@ -84,7 +99,6 @@ def load_HII_CHI_MISTRY_grid(log_scale=False, log_zero_value = -1000):
     return grid_dict, grid_axes
 
 
-# Function to save a parameter dictionary into a cfg dictionary
 def parseConfDict(output_file, param_dict, section_name, clear_section=False):
     # TODO add logic to erase section previous results
     # TODO add logic to create a new file from dictionary of dictionaries
@@ -120,7 +134,6 @@ def parseConfDict(output_file, param_dict, section_name, clear_section=False):
     return
 
 
-# Function to map variables to strings
 def formatConfEntry(entry_value, float_format=None, nan_format='nan'):
     # TODO this one should be replaced by formatStringEntry
     # Check None entry
@@ -161,7 +174,6 @@ def formatConfEntry(entry_value, float_format=None, nan_format='nan'):
     return formatted_value
 
 
-# Function to save the PYMC3 simulation as a fits log
 def fits_db(fits_address, model_db, ext_name='', header=None):
 
     line_labels = model_db['inputs']['lines_list']
