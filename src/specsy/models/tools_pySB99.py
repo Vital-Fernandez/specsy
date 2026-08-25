@@ -2,7 +2,118 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 import pandas as pd
+from pathlib import Path
+from astropy.table import Table
+from specsy import cfg as sy_cfg
 
+
+def find_ionizing_files(root_folder, mets=None, ion_file='ion_flux_HI.txt', timesteps_file='timesteps.txt'):
+
+    """
+    Locate the ionizing output and age step files in a compiled spectra root folder.
+
+    Parameters
+    ----------
+    root_folder : str or Path
+        Folder holding one subfolder per metallicity.
+    mets : list, optional
+        Metallicity labels declaring the output order. If None the subfolder names are
+        sorted alphabetically. Otherwise every label must match a subfolder name.
+    ion_file : str
+        Name of the log(Q(HI)) file within each metallicity folder.
+    timesteps_file : str
+        Name of the age steps file within each metallicity folder.
+
+    Returns
+    -------
+    file_list, mets, timesteps_path
+    """
+
+    root_folder = Path(root_folder)
+
+    # Metallicity folders containing the ionizing output
+    folder_dict = {folder.name: folder for folder in sorted(root_folder.iterdir())
+                   if folder.is_dir() and (folder/ion_file).is_file()}
+
+    if len(folder_dict) == 0:
+        raise ValueError(f'No subfolder with a "{ion_file}" file at {root_folder}')
+
+    # The requested order, or the alphabetical one
+    list_folders = list(folder_dict)
+    if mets is None:
+        mets = [sy_cfg['stellar']['ssp']['pystarburst99']['z_keys'][folder.split('_')[0]]
+                for folder in list_folders]
+    else:
+        missing = [metal for metal in mets if metal not in folder_dict]
+        if len(missing) > 0:
+            raise ValueError(f'Metallicities without a "{ion_file}" file: {missing}')
+        list_folders = list(mets)
+        mets = [sy_cfg['stellar']['ssp']['pystarburst99']['z_keys'][folder.split('_')[0]]
+                for folder in list_folders]
+
+    # The age steps must be common to every metallicity
+    file_list = [root_folder/folder/ion_file for folder in list_folders]
+    timesteps_list = [root_folder/folder/timesteps_file for folder in list_folders]
+
+    missing = [path.parent.name for path in timesteps_list if not path.is_file()]
+    if len(missing) > 0:
+        raise ValueError(f'Metallicities without a "{timesteps_file}" file: {missing}')
+
+    ages_ref = np.loadtxt(timesteps_list[0])
+    for metal, path in zip(mets[1:], timesteps_list[1:]):
+        ages_i = np.loadtxt(path)
+        if (ages_i.shape != ages_ref.shape) or not np.allclose(ages_i, ages_ref):
+            raise ValueError(f'The "{timesteps_file}" of {metal} does not match {mets[0]}')
+
+    return file_list, mets, timesteps_list[0]
+
+
+def ionizing_table(file_list, mets, timesteps_file, output_file=None):
+
+    """
+    Combine single-column log(Q(HI)) files into one table, with one metallicity per row
+    and one column per age step. Rows are sorted by increasing metallicity.
+
+    Parameters
+    ----------
+    file_list : list
+        Paths to the ionizing output files, one per metallicity, each a single ascii
+        column of log(Q(HI)) values ordered by age step.
+    mets : list
+        Numerical metallicity values, in the same order as ``file_list``.
+    timesteps_file : str or Path
+        Ascii file with the grid age steps in logarithmic scale, one per line.
+    output_file : str or Path, optional
+        Destination for the ascii table. The table is only written if this is provided.
+    """
+
+    if len(file_list) != len(mets):
+        raise ValueError(f'Received {len(file_list)} files for {len(mets)} metallicities')
+
+    # Age steps labelling the columns
+    ages = np.loadtxt(timesteps_file)
+
+    # One row per metallicity, one column per age step
+    mets = np.asarray(mets, dtype=float)
+    q_matrix = np.array([np.loadtxt(file) for file in file_list])
+
+    if q_matrix.shape != (mets.size, ages.size):
+        raise ValueError(f'Ionizing data has shape {q_matrix.shape}, expected {(mets.size, ages.size)}')
+
+    # Sort the rows by increasing metallicity
+    idcs_sort = np.argsort(mets)
+    mets, q_matrix = mets[idcs_sort], q_matrix[idcs_sort, :]
+
+    # Metallicity column followed by the age columns
+    nion_table = Table()
+    nion_table['Z'] = mets
+    for i, age in enumerate(ages):
+        nion_table[str(age)] = q_matrix[:, i]
+
+    if output_file is not None:
+        nion_table.write(output_file, format='ascii', overwrite=True)
+
+    return nion_table
 
 def calc_Nostars(IMF_masses, IMF_exponents, IMF_mass_limits, M_total):
     if len(IMF_exponents) == 1:

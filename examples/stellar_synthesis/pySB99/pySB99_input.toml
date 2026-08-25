@@ -1,0 +1,47 @@
+[model1]
+
+# MWC, MW, LMC, SMC, IZw18, XMP, Z0 -> Z = 0.02, 0.014, 0.006, 0.002, 0.0004, 0.00001, 0.0
+Z = 'Z0'
+SBmodel_name = 'pySB99_files'
+source_path = '/home/vital/Astrodata/pystarburst99/pySB99_source'
+output_path = '/home/vital/Astrodata/pystarburst99/compiled_spectra_v1'
+save_output = true # true saves to folder, false prints/displays only
+
+# SFR is applied post-processing through a SFR light-ratio weighting method (in progress)
+M_total = 1.0e6
+IMF_exponents = [1.3, 2.3]
+IMF_mass_limits = [0.1, 0.5, 120.0]
+run_speed_mode = 'DEFAULT' # 'DEFAULT' ~60s. 'FAST' ~20s (tests and models <10Myr only). 'HIGH_RES' slow, all outputs high resolution in mass.
+
+# FW = Fastwind, WM = WMbasic OB low resolution spectral libraries
+SED_library = 'FW'
+
+# WM = WMbasic OB high resolution spectral library. PoWR and FW to come
+spectra_library = 'WM'
+
+# true for 0.4 v_critical rotation tracks, false for non-rotating
+rot = false
+
+# PoWR OB grid not yet implemented; keep false to use the WMbasic OB grid
+POWR = false
+
+plot_ion_flux = true
+plot_wind = true
+plot_uv_slope = true
+plot_ew = true
+plot_colours = true
+plot_SED_with_time = true
+plot_hires_spectra = true
+plot_SN_rate = true
+
+# coming soon
+plot_isochrones = false
+plot_spectral_types = false
+
+# Output spectra ages, declared in log10(yr)
+log_age_start = 6.0                     # log10(1 Myr)
+log_age_end = 7.69897                   # log10(50 Myr)
+n_ages = 50
+log_age_decimals = 3
+
+maximum_SN_mass = 40.0                  # max initial mass (Msol) accounted for as going supernova

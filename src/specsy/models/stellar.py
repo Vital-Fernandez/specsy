@@ -56,6 +56,31 @@ class PySB99Config:
         return '\n'.join(lines)
 
 
+
+def _metallicity_to_key(met_val, decimals=3):
+
+    """
+    Convert a numerical metallicity into the FITS extension name notation read by
+    ``_interpret_metallicity_keys`` (e.g. 0.014 -> 'Z014', 1e-05 -> 'Zem5').
+    """
+
+    # Zero has no exponent, but it round-trips through the decimal notation
+    if met_val == 0:
+        return 'Z' + '0' * decimals
+
+    exponent = np.log10(met_val)
+
+    # Exact powers of ten below the decimal resolution use the exponent notation
+    if (met_val < 10 ** -decimals) and np.isclose(exponent, np.round(exponent)):
+        return f'Zem{-int(np.round(exponent))}'
+
+    # Otherwise the digits after the decimal point, keeping at least ``decimals`` of them
+    digits = max(decimals, -int(np.floor(exponent)))
+
+    return 'Z' + f'{met_val:.{digits}f}'.split('.')[1]
+
+
+
 def pystarburst99_file_manager(cfg, M_total, IMF_exponents, IMF_mass_limits, run_speed_mode, times_out_yr,
                                SED_library='WM', POWR=False):
 
@@ -385,47 +410,49 @@ def _parse_pysb99_folder(folder_list, load_spectrum):
     for folder in folder_list:
         folder = Path(folder)
 
-        # Read metadata
-        input_path = folder / 'input.txt'
-        if not input_path.exists():
-            raise SpecSyError(f'Missing input.txt in {folder}')
-        meta = parse_pysb99_input_file(input_path)
+        if folder.is_dir():
 
-        # Read wavelength grid
-        wave_path = folder / 'spectrum_wavelength.txt'
-        if not wave_path.exists():
-            raise SpecSyError(f'Missing SED_wavelength.txt in {folder}')
-        wave_arr = np.loadtxt(wave_path)
+            # Read metadata
+            input_path = folder / 'input.txt'
+            if not input_path.exists():
+                raise SpecSyError(f'Missing input.txt in {folder}')
+            meta = parse_pysb99_input_file(input_path)
 
-        # Read time axis (in years, linear)
-        times_path = folder / 'timesteps.txt'
-        if not times_path.exists():
-            raise SpecSyError(f'Missing timesteps.txt in {folder}')
-        log_ages = np.log10(np.loadtxt(times_path))
+            # Read wavelength grid
+            wave_path = folder / 'spectrum_wavelength.txt'
+            if not wave_path.exists():
+                raise SpecSyError(f'Missing SED_wavelength.txt in {folder}')
+            wave_arr = np.loadtxt(wave_path)
 
-        # Read flux array — shape (n_wave, n_times), one column per age
-        if load_spectrum:
-            flux_path = folder / 'pySB_hires_spectrum.npy'
-            if not flux_path.exists():
-                raise SpecSyError(f'Missing pySB_hires_spectrum.npy in {folder}')
-            flux_matrix = np.load(flux_path)  # shape (n_wave, n_times), no conversion needed
+            # Read time axis (in years, linear)
+            times_path = folder / 'timesteps.txt'
+            if not times_path.exists():
+                raise SpecSyError(f'Missing timesteps.txt in {folder}')
+            log_ages = np.log10(np.loadtxt(times_path))
 
-        for i, log_age in enumerate(log_ages):
-            binary_list.append(Binary(
-                source='pystarburst99',
-                library=meta['library'],
-                metallicity=meta['metallicity'],
-                alpha=0.0,
-                imf='kroupa',
-                age=log_age,
-                fpath=str(folder),
-                wavelength=wave_arr if load_spectrum else None,
-                flux=flux_matrix[i, :] if load_spectrum else None,
-                low_imf_exp=meta.get('low_imf_exp'),
-                high_imf_exp=meta.get('high_imf_exp'),
-                low_imf_mass=meta.get('low_imf_mass'),
-                high_imf_mass=meta.get('high_imf_mass'),
-            ))
+            # Read flux array — shape (n_wave, n_times), one column per age
+            if load_spectrum:
+                flux_path = folder / 'pySB_hires_spectrum.npy'
+                if not flux_path.exists():
+                    raise SpecSyError(f'Missing pySB_hires_spectrum.npy in {folder}')
+                flux_matrix = np.load(flux_path)  # shape (n_wave, n_times), no conversion needed
+
+            for i, log_age in enumerate(log_ages):
+                binary_list.append(Binary(
+                    source='pystarburst99',
+                    library=meta['library'],
+                    metallicity=meta['metallicity'],
+                    alpha=0.0,
+                    imf='kroupa',
+                    age=log_age,
+                    fpath=str(folder),
+                    wavelength=wave_arr if load_spectrum else None,
+                    flux=np.power(10, flux_matrix[i, :]) if load_spectrum else None,
+                    low_imf_exp=meta.get('low_imf_exp'),
+                    high_imf_exp=meta.get('high_imf_exp'),
+                    low_imf_mass=meta.get('low_imf_mass'),
+                    high_imf_mass=meta.get('high_imf_mass'),
+                ))
 
     return binary_list
 
@@ -758,7 +785,8 @@ class StellarBinaries:
                 ext_map = {value: key for key, value in BPASS_Z_KEYS.items()}
             elif self.source == 'pystarburst99':
                 pySB99_Z_KEYS = specsy_cfg['stellar']['ssp']['pystarburst99']['z_keys']
-                ext_map = {value: key for key, value in pySB99_Z_KEYS.items()}
+                ext_map = {met_val: _metallicity_to_key(met_val) for name, met_val in pySB99_Z_KEYS.items()}
+                # ext_map = {value: key for key, value in pySB99_Z_KEYS.items()}
             else:
                 raise SpecSyError(f'Binaries source "{self.source}" does not have a metallicity header map')
 
@@ -964,7 +992,7 @@ class StellarBinaries:
         return pd.DataFrame(rows)
 
 
-    def plot_age_metallicity(self, libraries=None, fig_cfg=None):
+    def plot_age_metallicity(self, libraries=None, fig_cfg=None, fname=None):
 
         # Filter binaries by requested libraries
         all_libraries = sorted({b.library for b in self._binaries.values()})
@@ -1004,13 +1032,16 @@ class StellarBinaries:
             ax.set_title(f"Age-Metallicity coverage — source: {', '.join(sources)}")
             ax.set_xlabel("log(Age/yr)")
             ax.set_ylabel("Metallicity (Z)")
-            ax.set_yscale('log')
+            # ax.set_yscale('log')
 
             if use_colors:
                 ax.legend(title='Library', markerscale=2)
 
             plt.tight_layout()
-            plt.show()
+            if fname is None:
+                plt.show()
+            else:
+                plt.savefig(fname)
 
         return
 
