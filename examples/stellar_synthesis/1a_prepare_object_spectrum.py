@@ -5,7 +5,7 @@ from astropy.io import fits
 import numpy as np
 import specsy as sy
 
-
+/home/vital/Downloads/pySB99_SESAMME_Cube_v4/pySB99_SSP_Grid_v4.fits
 # Locate data
 fits_pname = Path(f'./sdss_dr18_0358-51818-0504.fits')
 spec = lime.Spectrum.from_file(fits_pname, instrument='sdss')

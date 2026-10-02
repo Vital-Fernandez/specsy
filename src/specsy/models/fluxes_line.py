@@ -1,5 +1,9 @@
-import pytensor
 
+try:
+    import pytensor
+    pytensor_check = True
+except ImportError:
+    pytensor_check = False
 
 def H1_flux(abund, emis, flambda, cHbeta):
     return emis - flambda * cHbeta

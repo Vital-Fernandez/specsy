@@ -552,16 +552,6 @@ class DirectMethod:
         self.trace = run_model(self.model,  draws=draws, tune=tune, chains=chains, cores=cores, target_accept=target_accept,
                                nuts_sampler=nuts_sampler, callback=callback)
 
-        # # Remove the normalization from the fluxes
-        # if linear_scale_results:
-        #     self.trace.posterior['theo_flux'] = np.power(10, self.trace.posterior['theo_flux'])
-        #     self.trace.observed_data['likelihood'] = np.power(10, self.trace.observed_data['likelihood'])
-        #
-        # # Remove the log scale for the helium abundaces
-        # for helium in ['He1', 'He2']:
-        #     if helium in self.inputs.ion_arr:
-        #         self.trace.posterior[helium] = np.power(10, self.trace.posterior[helium])
-
         # Remove the normalization from the fluxes
         if linear_scale_results:
             self.trace.posterior['theo_flux'] = np.power(10, self.trace.posterior['theo_flux'])
@@ -575,20 +565,18 @@ class DirectMethod:
         for helium in ['He1', 'He2']:
             if helium in self.inputs.ion_arr:
                 self.trace.posterior[helium] = np.power(10, self.trace.posterior[helium])
-                if 'prior' in self.trace.groups():
+                if 'prior' in self.trace.groups:
                     self.trace.prior[helium] = np.power(10, self.trace.prior[helium])
 
         return
 
-    def save_line_structure(self, fname):
-        lime.save_frame(fname, self.lines_structure)
-
-        return
-
     def save_trace(self, fname):
-        # az.to_netcdf(self.trace, fname)
         self.trace.to_netcdf(fname)
 
         return
 
 
+    def save_line_structure(self, fname):
+        lime.save_frame(fname, self.lines_structure)
+
+        return

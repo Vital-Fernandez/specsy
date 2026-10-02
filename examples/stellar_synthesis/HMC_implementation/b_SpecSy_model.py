@@ -70,32 +70,8 @@ wl, lum, lum_err, mask = load_spectrum(fname, distance_mpc=4.8, mask_arr=windowl
 
 
 # # Load the stellar binaries and prepare them for the object
-bpass_SSPs = load_ssp_cube(f'./SESAMME_BAPSS-AP_v3.fits')
+bpass_SSPs = load_ssp_cube(f'../SESAMME_BAPSS-AP_v3.fits')
 ion_table = load_ionization_table("/home/vital/Astrodata/BPASS_v2.3/Demo_Q_Table.txt")
 
-# Extinttion law
-models.set_ext_law('CCM')
-
-# Prepare the sampler
-stats.set_walker_size(128)
-stats.set_chain_size(5000)
-stats.set_initial_positions([7., -2.1, 0.3, -2.])
-
-# Set the priors
-prior_lowbounds = [6.0, np.log10(0.008), 0.01, -20.]
-prior_highbounds = [7.5, np.log10(0.03), 1.0, 1.0]
-stats.set_prior_bounds(stats.prior_dict, prior_lowbounds, prior_highbounds)
-
-# New fitting
-runname = 'specsy_script_v4'
-filename = f"M83_test_{runname}.h5"
-stats.run_sesamme(filename, runname, wl, lum, lum_err, bpass_SSPs, ion_table, mask, True)
-
-# Load the traces
-print(f'Loading {filename} for run {runname}')
-reader = emcee.backends.HDFBackend(filename, name=runname)
-flat_samples = reader.get_chain(discard=40, thin=10, flat=True)
-
-# Save the measurements
-fname = f'{filename}_results'
-vis.save_stats(flat_samples, output_path='./', run_name=runname)
+print(type(bpass_SSPs))
+print(type(ion_table))

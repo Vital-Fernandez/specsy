@@ -1,8 +1,6 @@
 from pathlib import Path
 import numpy as np
-from matplotlib import pyplot as plt
 
-from specsy.models.ssp import StellarBinaries
 from sesamme import models, vis
 import sesamme.mcmc as stats
 from sesamme.models import load_ionization_table, load_ssp_cube
@@ -70,7 +68,7 @@ wl, lum, lum_err, mask = load_spectrum(fname, distance_mpc=4.8, mask_arr=windowl
 
 
 # # Load the stellar binaries and prepare them for the object
-bpass_SSPs = load_ssp_cube(f'./SESAMME_BAPSS-AP_v3.fits')
+bpass_SSPs = load_ssp_cube(f'../SESAMME_BAPSS-AP_v3.fits')
 ion_table = load_ionization_table("/home/vital/Astrodata/BPASS_v2.3/Demo_Q_Table.txt")
 
 # Extinttion law
@@ -78,7 +76,7 @@ models.set_ext_law('CCM')
 
 # Prepare the sampler
 stats.set_walker_size(128)
-stats.set_chain_size(5000)
+stats.set_chain_size(2000)
 stats.set_initial_positions([7., -2.1, 0.3, -2.])
 
 # Set the priors
@@ -99,3 +97,5 @@ flat_samples = reader.get_chain(discard=40, thin=10, flat=True)
 # Save the measurements
 fname = f'{filename}_results'
 vis.save_stats(flat_samples, output_path='./', run_name=runname)
+
+vis.plot_samples(wl, lum, windowlist, flat_samples, add_nebular=True, savefile=True, savefile_name='./initial_model')

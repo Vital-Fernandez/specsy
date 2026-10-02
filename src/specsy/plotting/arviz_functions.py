@@ -15,7 +15,7 @@ from lime.plotting.plots import save_close_fig_swicth
 from itertools import chain
 from specsy.plotting.bokeh_functions import update_bokeh_figure
 from specsy.plotting.plots import theme
-
+from lime import Spectrum
 
 try:
     from bokeh.plotting import figure, output_file, save, show
@@ -379,3 +379,194 @@ def plot_traces(trace_data, var_names=None, true_values=None, output_address=Non
             raise SpecSyError(f'Backend {backend} not supported. Please choose matplotlib or bokeh.')
 
     return in_fig
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rc_context
+from matplotlib.colors import to_rgba, LinearSegmentedColormap
+from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
+from scipy.ndimage import gaussian_filter
+
+# Spectrum, theme and save_close_fig_swicth come from your existing imports
+
+CORNER_COLORS = ['#6a4bb3', '#b22b2b', '#2b8cb2', '#3f9b4a']
+
+
+def _edges_from_centers(centers):
+
+    # Bin edges halfway between consecutive grid points (for discrete parameters)
+    c = np.sort(np.asarray(centers, dtype=float))
+    if c.size == 1:
+        return np.array([c[0] - 0.5, c[0] + 0.5])
+    mid = 0.5 * (c[1:] + c[:-1])
+    return np.concatenate([[c[0] - (mid[0] - c[0])], mid, [c[-1] + (c[-1] - mid[-1])]])
+
+
+def _contour_2d(ax, x, y, x_edges, y_edges, color, smooth, sigmas):
+
+    hist, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges])
+    if smooth:
+        hist = gaussian_filter(hist, smooth)
+    if hist.max() <= 0:
+        return
+
+    # Density thresholds enclosing the 2D-Gaussian-equivalent mass of each sigma
+    mass = 1 - np.exp(-0.5 * np.square(sigmas))
+    h_flat = np.sort(hist.ravel())[::-1]
+    cdf = np.cumsum(h_flat) / h_flat.sum()
+    idx = np.clip(np.searchsorted(cdf, mass, side='left'), 0, h_flat.size - 1)
+    levels = np.unique(h_flat[idx])
+    levels = levels[levels > 0]
+    if levels.size == 0:
+        return
+
+    xc = 0.5 * (x_edges[1:] + x_edges[:-1])
+    yc = 0.5 * (y_edges[1:] + y_edges[:-1])
+    rgb = to_rgba(color)[:3]
+    cmap = LinearSegmentedColormap.from_list('corner_fill', [(*rgb, 0.1), (*rgb, 0.85)])
+
+    ax.contourf(xc, yc, hist.T, levels=np.append(levels, hist.max() * 1.01), cmap=cmap)
+    ax.contour(xc, yc, hist.T, levels=levels, colors=[color], linewidths=1)
+
+    return
+
+
+def plot_corner(fig, subplot_spec, samples, labels=None, colors=None, set_labels=None, truths=None,
+                grid_points=None, bins=20, smooth=1.0, sigmas=(0.5, 1.0, 1.5, 2.0), space=0.05):
+    """
+    Lower-triangle scatter plot matrix drawn inside a SubplotSpec of an existing figure.
+
+    samples:     dict {param: 1D array} or list of such dicts (one per model set, same keys)
+    labels:      dict {param: axis label}
+    set_labels:  list of legend labels, one per sample set
+    truths:      dict {param: value} -> black solid lines
+    grid_points: dict {param: array} -> gray dotted lines on the diagonal. If no bins are given
+                 for that parameter, the bin edges are placed halfway between grid points.
+    bins:        int or dict {param: bin edges}
+    """
+
+    sets = [samples] if isinstance(samples, dict) else list(samples)
+    params = list(sets[0].keys())
+    n_par = len(params)
+    colors = colors or CORNER_COLORS
+    labels, truths, grid_points = labels or {}, truths or {}, grid_points or {}
+
+    # Common bin edges per parameter for all the sample sets
+    edges = {}
+    for p in params:
+        if isinstance(bins, dict) and p in bins:
+            edges[p] = np.asarray(bins[p], dtype=float)
+        elif p in grid_points:
+            edges[p] = _edges_from_centers(grid_points[p])
+        else:
+            lo = min(np.nanmin(s[p]) for s in sets)
+            hi = max(np.nanmax(s[p]) for s in sets)
+            pad = 0.05 * (hi - lo) if hi > lo else 0.5
+            n_bins = bins if isinstance(bins, int) else 20
+            edges[p] = np.linspace(lo - pad, hi + pad, n_bins + 1)
+
+    inner = subplot_spec.subgridspec(n_par, n_par, hspace=space, wspace=space)
+    axes = np.full((n_par, n_par), None, dtype=object)
+
+    for i, p_y in enumerate(params):
+        for j, p_x in enumerate(params[:i + 1]):
+            ax = fig.add_subplot(inner[i, j])
+            axes[i, j] = ax
+            diag = i == j
+
+            # Distributions
+            for k, s in enumerate(sets):
+                c = colors[k % len(colors)]
+                if diag:
+                    ax.hist(s[p_x], bins=edges[p_x], histtype='step', density=True, color=c, linewidth=1.2)
+                    ax.axvline(np.nanmedian(s[p_x]), color=c, linestyle='--', linewidth=1)
+                else:
+                    _contour_2d(ax, s[p_x], s[p_y], edges[p_x], edges[p_y], c, smooth, sigmas)
+
+            # Reference lines
+            if diag:
+                for g in grid_points.get(p_x, []):
+                    ax.axvline(g, color='0.6', linestyle=':', linewidth=0.7, zorder=0)
+            if p_x in truths:
+                ax.axvline(truths[p_x], color='k', linewidth=1)
+            if not diag and p_y in truths:
+                ax.axhline(truths[p_y], color='k', linewidth=1)
+
+            # X axis: labels only on the bottom row
+            ax.set_xlim(edges[p_x][0], edges[p_x][-1])
+            ax.xaxis.set_major_locator(MaxNLocator(4, prune='both'))
+            if i < n_par - 1:
+                ax.tick_params(labelbottom=False)
+            else:
+                ax.set_xlabel(labels.get(p_x, p_x))
+                ax.tick_params(axis='x', labelrotation=45)
+
+            # Y axis: no ticks on the diagonal, labels only on the first column
+            if diag:
+                ax.set_ylim(bottom=0)
+                ax.set_yticks([])
+            else:
+                ax.set_ylim(edges[p_y][0], edges[p_y][-1])
+                ax.yaxis.set_major_locator(MaxNLocator(4, prune='both'))
+                if j == 0:
+                    ax.set_ylabel(labels.get(p_y, p_y))
+                    ax.tick_params(axis='y', labelrotation=45)
+                else:
+                    ax.tick_params(labelleft=False)
+
+    # Legend in the empty upper triangle
+    if set_labels is not None and n_par > 1:
+        handles = [Line2D([], [], color=colors[k % len(colors)], label=lbl) for k, lbl in enumerate(set_labels)]
+        axes[0, 0].legend(handles=handles, loc='upper right', frameon=False,
+                          bbox_to_anchor=(n_par + (n_par - 1) * space, 1.0))
+
+    return axes
+
+
+def plot_ssp_diag(spectrum, samples=None, in_fig=None, fig_cfg=None, ax_cfg=None, corner_cfg=None, label=None,
+                  fname=None):
+
+    # Display check for the user figures
+    display_check = True if in_fig is None else False
+
+    # Load the spectrum file
+    spec = Spectrum.from_file(spectrum, instrument='text')
+
+    # Adjust the default theme
+    PLT_CONF = theme.fig_defaults({"figure.dpi": 100, "figure.figsize": [16, 9], "font.size": 12, "axes.labelsize": 13,
+                                   "axes.titlesize": 14, "legend.fontsize": 10, "xtick.labelsize": 10, "ytick.labelsize": 10})
+    AXES_CONF = theme.ax_defaults(ax_cfg, observation=spec)
+
+    # Create and fill the figure
+    with (rc_context(PLT_CONF)):
+
+        # Generate the figure object and figures
+        if in_fig is None:
+            in_fig = plt.figure()
+
+        # Left column: spectrum panels, right column: scatter plot matrix
+        outer_grid = in_fig.add_gridspec(nrows=1, ncols=2, width_ratios=[1.3, 1], wspace=0.2)
+        grid_ax = outer_grid[0].subgridspec(nrows=2, ncols=1, height_ratios=[2, 1])
+        ax = in_fig.add_subplot(grid_ax[0])
+
+        wave_plot = spec.wave.data
+        flux_plot = spec.flux.data
+        mask_plot = ~spec.flux.mask
+
+        # Plot spectrum
+        ax.step(wave_plot, flux_plot, label=label, where='mid', color=theme.colors['fg'],
+                linewidth=theme.plt['spectrum_width'])
+
+        ax.update(AXES_CONF)
+
+        # Plot the scatter plot matrix
+        if samples is not None:
+            plot_corner(in_fig, outer_grid[1], samples, **(corner_cfg or {}))
+
+        # By default, plot on screen unless an output address is provided
+        in_fig = save_close_fig_swicth(fname, 'tight', in_fig, False, display_check)
+
+    return

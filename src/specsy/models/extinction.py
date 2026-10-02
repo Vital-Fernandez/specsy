@@ -1,14 +1,11 @@
 import logging
 import numpy as np
 
-try:
-    import pyneb as pn
-    pyneb_check = True
-except ImportError:
-    pyneb_check = False
+import pyneb as pn
 
 from lime import label_decomposition
 from lime.io import check_file_dataframe
+from lime.tools import au
 from uncertainties import unumpy, ufloat
 from specsy.plotting.plots import extinction_gradient
 from specsy.tools import get_mixed_fluxes, linear_regression
@@ -16,6 +13,15 @@ from specsy.io import SpecSyError
 
 _logger = logging.getLogger('SpecSy')
 
+
+# Tabulated R_V for each PyNeb law
+DEFAULT_RV = {'CCM89': 3.1, 'CCM89 Bal07': 3.1, 'CCM89 oD94': 3.1, 'S79 H83 CCM89': 3.1,
+              'SM79 Gal': 3.1, 'F99': 3.1, 'Cal00': 4.05, 'G03 LMC': 3.41}
+
+# These laws are only defined at their tabulated R_V; a different value can't be requested
+FIXED_RV_LAWS = {'SM79 Gal', 'G03 LMC'}
+
+EXT_LAWS = tuple(DEFAULT_RV)
 
 
 # Function to compute and plot cHbeta
@@ -223,6 +229,7 @@ def flambda_calc(wavelength_array, R_V=3.1, law='CCM89', norm_wave=4861):
     return f_lambda
 
 
+
 def reddening_correction(cHbeta, cHbeta_err, log, R_v=3.1, red_curve='G03 LMC', norm_wavelength=None, flux_column='gauss_flux',
                          n_points=1000, intensity_column='line_int'):
 
@@ -253,6 +260,131 @@ def reddening_correction(cHbeta, cHbeta_err, log, R_v=3.1, red_curve='G03 LMC', 
     log.insert(1, f'{intensity_column}_err', int_dist.std(axis=0))
 
     return
+
+
+
+def extinction_curve(x, ext_law='CCM89', r_v=None):
+
+    """A_lambda / E(B-V) in magnitudes for a PyNeb extinction law (wavelength x in Angstrom).
+
+    The curve is linear in E(B-V) at the assumed R_V, so it is evaluated once and reused at every
+    sampling step as 10**(-0.4 * ebv * klam).
+
+    Raises
+    ------
+    ValueError
+        If ext_law is not one of EXT_LAWS.
+    """
+
+    if ext_law not in EXT_LAWS:
+        raise ValueError(f"'{ext_law}' is not a valid choice of extinction law.\n"
+                         f"Accepted values are {', '.join(EXT_LAWS)}.")
+
+    r_v = DEFAULT_RV[ext_law] if r_v is None else r_v
+    if (ext_law in FIXED_RV_LAWS) and not np.isclose(r_v, DEFAULT_RV[ext_law]):
+        _logger.warning(f"'{ext_law}' is only defined at R_V={DEFAULT_RV[ext_law]}; the requested "
+                        f"R_V={r_v} is ignored.")
+        r_v = DEFAULT_RV[ext_law]
+
+    wave = np.asarray(x, dtype=np.float64)
+    klam = np.squeeze(pn.RedCorr(E_BV=1.0, R_V=r_v, law=ext_law).X(wave)).astype(float)
+
+    if np.any(klam < 0) or not np.all(np.isfinite(klam)):
+        _logger.warning(f"Extinction curve for {ext_law} has negative or non-finite values; check the "
+                        f"wavelength coverage against the law's validity range.")
+
+    return klam
+
+
+# EXT_LAWS = {'CCM': lambda w: extinction.ccm89(w, 3.1, 3.1),
+#             'ODonnell': lambda w: extinction.odonnell94(w, 3.1, 3.1),
+#             'Fitzpatrick99': lambda w: extinction.fitzpatrick99(w, 3.1, 3.1),
+#             'FitzMassa07': lambda w: extinction.fm07(w, 3.1),
+#             'Calzetti': lambda w: extinction.calzetti00(w, 4.05, 4.05),
+#             'Gordon23': lambda w: G23(Rv=3.1)(w * au.AA) * 3.1,
+#             'LMC': lambda w: G03_LMCAvg()(w * au.AA) * G03_LMCAvg().Rv,
+#             'SMC': lambda w: G03_SMCBar()(w * au.AA) * G03_SMCBar().Rv}
+#
+# DEFAULT_RV = {'CCM': 3.1, 'ODonnell': 3.1, 'Fitzpatrick99': 3.1, 'FitzMassa07': 3.1,
+#               'Calzetti': 4.05, 'Gordon23': 3.1, 'LMC': 3.41, 'SMC': 2.74}
+#
+# # These laws are only defined at their tabulated R_V; a different value can't be requested
+# FIXED_RV_LAWS = {'FitzMassa07', 'LMC', 'SMC'}
+#
+#
+# def _ext_law_func(ext_law, r_v):
+#     match ext_law:
+#         case 'CCM':
+#             return lambda w: extinction.ccm89(w, r_v, r_v)
+#         case 'ODonnell':
+#             return lambda w: extinction.odonnell94(w, r_v, r_v)
+#         case 'Fitzpatrick99':
+#             return lambda w: extinction.fitzpatrick99(w, r_v, r_v)
+#         case 'FitzMassa07':
+#             return lambda w: extinction.fm07(w, r_v)
+#         case 'Calzetti':
+#             return lambda w: extinction.calzetti00(w, r_v, r_v)
+#         case 'Gordon23':
+#             return lambda w: G23(Rv=r_v)(w * au.AA) * r_v
+#         case 'LMC':
+#             model = G03_LMCAvg()
+#             return lambda w: model(w * au.AA) * model.Rv
+#         case 'SMC':
+#             model = G03_SMCBar()
+#             return lambda w: model(w * au.AA) * model.Rv
+#         case _:
+#             raise ValueError(f"'{ext_law}' has no implementation in _ext_law_func.")
+#
+#
+# def extinction_curve(x, ext_law='CCM', r_v=None):
+#     """A_lambda / E(B-V) in magnitudes, for one of SESAMME's extinction laws.
+#
+#     Every law in EXT_LAWS is linear in A_V at the assumed R_V, so the whole curve reduces to this one
+#     array, evaluated once here and reused at every sampling step as 10**(-0.4 * ebv * klam).
+#
+#     Parameters
+#     ----------
+#     ext_law : str, optional
+#         Defaults to models.use_ext_law, so set_ext_law() still controls it.
+#     r_v : float, optional
+#         Total-to-selective extinction ratio. Defaults to the law's tabulated value (Table 1). Ignored,
+#         with a warning, for laws whose curve is only defined at one R_V (FitzMassa07, LMC, SMC).
+#
+#     Raises
+#     ------
+#     ValueError
+#         If ext_law is not an implemented option.
+#     """
+#
+#     if ext_law not in EXT_LAWS:
+#         raise ValueError("'" + str(ext_law) + "' is not a valid choice of extinction law.\n"
+#                                               "Accepted values are " + ", ".join(EXT_LAWS) + ".")
+#
+#     r_v = DEFAULT_RV[ext_law] if r_v is None else r_v
+#     if (ext_law in FIXED_RV_LAWS) and not np.isclose(r_v, DEFAULT_RV[ext_law]):
+#         _logger.warning(f"'{ext_law}' is only defined at R_V={DEFAULT_RV[ext_law]}; the requested "
+#                         f"R_V={r_v} is ignored.")
+#         r_v = DEFAULT_RV[ext_law]
+#
+#     wave = np.asarray(x, dtype=np.float64)
+#     klam = np.asarray(_ext_law_func(ext_law, r_v)(wave), dtype=float)
+#
+#     if np.any(klam < 0) or not np.all(np.isfinite(klam)):
+#         _logger.warning(
+#             f"Extinction curve for {ext_law} has negative or non-finite values; check the wavelength coverage"
+#             " against the law's validity range.")
+#
+#     return klam
+#
+#
+# def reddening_law(ext_law='CCM', r_v=None):
+#     """(wave, ebv, flux) -> reddened flux, for SSPNodes."""
+#
+#     def apply(wave, ebv, flux):
+#         klam = extinction_curve(wave, ext_law=ext_law, r_v=r_v)
+#         return flux * 10.0 ** (-0.4 * ebv * klam)
+#
+#     return apply
 
 
 class ExtinctionModel:

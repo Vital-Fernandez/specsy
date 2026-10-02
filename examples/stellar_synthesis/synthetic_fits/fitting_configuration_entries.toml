@@ -1,0 +1,63 @@
+# Same for all: spread_step = true, cores = 1 (the default for DEMetropolis), band_draws = 1000, rng_seed = 1234
+# Evaluations = n_walkers x (draws + tune)
+
+[W128_x2]                      # 128 000 evaluations
+sampler     = "DEMetropolis"
+n_walkers   = 128
+draws       = 250
+tune        = 750
+spread      = 0.10
+spread_step = true
+cores       = 1
+band_draws  = 1000
+rng_seed    = 1234
+
+[DEM_w128]                     # 64 000 evaluations
+sampler     = "DEMetropolis"
+n_walkers   = 128
+draws       = 125
+tune        = 375
+spread      = 0.10
+spread_step = true
+cores       = 1
+band_draws  = 1000
+rng_seed    = 1234
+
+[DEM_tunelamb]                 # 64 000 evaluations (64 walkers, not 128)
+sampler     = "DEMetropolis"
+n_walkers   = 64
+draws       = 250
+tune        = 750
+spread      = 0.10
+spread_step = true
+cores       = 1
+band_draws  = 1000
+rng_seed    = 1234
+[DEM_tunelamb.step]
+tune        = "lambda"
+
+[W512_x2]                      # 128 000 evaluations
+sampler     = "DEMetropolis"
+n_walkers   = 512
+draws       = 62
+tune        = 188
+spread      = 0.10
+spread_step = true
+cores       = 1
+band_draws  = 1000
+rng_seed    = 1234
+
+[TL_w128_int50]                # 64 000 evaluations
+sampler     = "DEMetropolis"
+n_walkers   = 128
+draws       = 125
+tune        = 375
+spread      = 0.10
+spread_step = true
+cores       = 1
+band_draws  = 1000
+rng_seed    = 1234
+
+[TL_w128_int50.step]
+tune          = "lambda"
+tune_interval = 50

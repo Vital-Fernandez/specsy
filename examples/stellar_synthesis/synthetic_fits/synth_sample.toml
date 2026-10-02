@@ -1,0 +1,23 @@
+[mock_observation_1]
+log_age = 7.32
+metallicity = 0.005
+ebv = 0.12
+distance = 3.04    # Mpc
+mass = 1.5e7       # Msun
+#masks = []        # empty = no masks (TOML has no None)
+# masks = [[1200, 1230], [1295, 1310], [1330, 1340], [1390, 1410], [1545, 1555]]  # Lya, OI, CII, SiIV, CIV (approx.)
+
+[mock_observation_2]
+log_age = 6.82
+metallicity = 0.00076
+ebv = 0.05
+distance = 5.04         # Mpc
+mass = 2.13e7           # Msun
+
+[mock_observation_3]
+log_age = 6.82
+metallicity = 0.00076
+ebv = 0.05
+distance = 5.04         # Mpc
+mass = 2.13e7           # Msun
+add_nebular=true

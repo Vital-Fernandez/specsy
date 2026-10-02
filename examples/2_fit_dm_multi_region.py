@@ -12,9 +12,9 @@ import specsy as sy
 
 # Synthetic region base parameters
 cfg_fname = f'./synthetic_spectrum_region_v0.toml'
-lines_fname = f'./synthetic_spectrum_lines_region_v7.txt'
-trace_fname = f'./synthetic_spectrum_trace_v7.nc'
-lines_struc_fname = f'./synthetic_spectrum_line_structure_v7.txt'
+lines_fname = f'./synthetic_spectrum_lines_region_v3.txt'
+trace_fname = f'./synthetic_spectrum_trace_v3.nc'
+lines_struc_fname = f'./synthetic_spectrum_line_structure_v3.txt'
 
 # Load the data
 spec_cfg = sy.load_cfg(cfg_fname)

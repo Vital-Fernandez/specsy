@@ -7,7 +7,7 @@ import corner
 from astropy.table import Table
 from astropy import units as u
 from sesamme.models import load_ionization_table, load_ssp_cube
-
+from matplotlib import pyplot as plt
 
 models.set_ext_law('CCM')
 
@@ -27,6 +27,9 @@ flux_err = specfile['ERROR']
 # But rescaling to luminosity density units (L_Sun A-1) allows SESAMME to infer a stellar mass for the cluster
 lum = flux * 4*np.pi * (4.8*u.Mpc.to(u.cm))**2 / 3.83e33
 lum_err = flux_err * 4*np.pi * (4.8*u.Mpc.to(u.cm))**2 / 3.83e33
+fig, ax = plt.subplots()
+ax.plot(wl, lum)
+plt.show()
 
 windowlist = np.array([[np.min(wl), 1133], [1172, 1176.5],  [1188, 1202], [1203.8, 1222],
                        [1257, 1262], [1299, 1305], [1331, 1336.2], [1276, 1286], [1454, 1456], [1465, 1469],

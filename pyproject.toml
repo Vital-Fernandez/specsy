@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy"
-version = "0.10.0"
+version = "0.11.0"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = {text = "GPL-3.0-or-later"}
@@ -21,8 +21,8 @@ dependencies = ["arviz>=1.2",
                 "jax>=0.10",
                 "jaxlib>=0.10",
                 "pyneb>=1.1.30",
-                "lime-stable[full]~=2.4.3",
-                "aspect-stable~=0.8.0",
+                "lime-stable[full]~=2.5.0",
+                "aspect-stable~=1.0.0",
                 "innate-stable~=0.3.0",
                 "pymc[nutpie]~=6.0.1",
                 "toml>=0.10",

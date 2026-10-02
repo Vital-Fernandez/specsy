@@ -1,12 +1,15 @@
 import logging
 import os
 import numpy as np
+from pandas import DataFrame
 import configparser
 from pathlib import Path
 from collections.abc import Sequence
 from astropy.io import fits
 from innate import load_dataset
 from lime import load_cfg
+from arviz import from_netcdf
+
 
 _logger = logging.getLogger('SpecSy')
 
@@ -362,4 +365,107 @@ def load_emissivity_interp(fname, array_mode=False):
     return interp_dict
 
 
-    return
+def load_ssp_trace_results(idata, param_names):
+
+    """
+    theta, best_model, predictive band (p16, p50, p84), node table and marginal-posterior stats (percentiles,
+    and ESS/tau if present) stored in the trace's fit_results group.
+    """
+
+    fr = idata.outputs
+    theta = [float(v) for v in fr['theta'].values]
+    band = tuple(fr[f'band_p{q}'].values for q in (16, 50, 84))
+    nodes = DataFrame({'log_age': fr['node_log_age'].values, 'Z': fr['node_Z'].values,
+                          'ebv_p50': fr['node_ebv_p50'].values, 'log_A_p50': fr['node_log_A_p50'].values,
+                          'prob': fr['node_prob'].values})
+
+    cols = ['p16', 'p50', 'p84'] + (['ess', 'tau'] if 'marginal_ess' in fr else [])
+    data = {c: fr[f'marginal_{c}'].values for c in cols}
+    stats = DataFrame(data, index=list(param_names))
+
+    return theta, fr['best_model'].values, band, nodes, stats
+
+
+
+# def update_fit_results(idata, band_draws=1000, seed=None):
+#     """Recomputes the fit_results group (best fit, node table, predictive band, marginal stats) from the posterior."""
+#
+#     d =  idata.constant_data
+#     old = idata.fit_results
+#
+#     theta_best, best_model, tab = best_fit(idata, d=d)
+#     p16, p50, p84 = predictive_band(idata, n_draws=band_draws, seed=seed, d=d)
+#     stats = marginal_stats(idata)
+#
+#     idata['fit_results'] = xr.Dataset(
+#         {'theta': ('param', np.asarray(theta_best, dtype=float)),
+#          **{key: (old[key].dims, old[key].values) for key in ('p0', 'p0_arr', 'truth') if key in old},
+#          'best_model': ('pixel', best_model),
+#          'band_p16': ('pixel', p16), 'band_p50': ('pixel', p50), 'band_p84': ('pixel', p84),
+#          'node_log_age': ('rank', tab['log_age'].to_numpy()), 'node_Z': ('rank', tab['Z'].to_numpy()),
+#          'node_ebv_p50': ('rank', tab['ebv_p50'].to_numpy()), 'node_log_A_p50': ('rank', tab['log_A_p50'].to_numpy()),
+#          'node_prob': ('rank', tab['prob'].to_numpy()),
+#          'marginal_p16': ('param', stats['p16'].to_numpy()), 'marginal_p50': ('param', stats['p50'].to_numpy()),
+#          'marginal_p84': ('param', stats['p84'].to_numpy()),
+#          **({'marginal_ess': ('param', stats['ess'].to_numpy()),
+#              'marginal_tau': ('param', stats['tau'].to_numpy())} if 'ess' in stats else {})},
+#         coords={'param': list(PARAM_NAMES)})
+#
+#     return idata
+#
+#
+# def chain_chi2(idata, param_names, d=None):
+#     """chi2 of every posterior sample (nearest-node model), shape (chain, draw)."""
+#
+#     d = idata.constant_data if d is None else d
+#     theta = np.stack([idata.posterior[name].values for name in param_names], axis=-1)    # (chain, draw, param)
+#     flat = theta.reshape(-1, len(param_names))
+#     rows = d.rows(flat[:, 0], flat[:, 1])
+#
+#     good = d.mask & np.isfinite(d.lum) & (d.lum_err > 0)
+#     y, err, flux, red = d.lum[good], d.lum_err[good], d.grid_flux[:, good], d.red_corr[good]
+#
+#     chi2 = np.full(len(flat), np.inf)
+#     for i, (row, (_, _, ebv, log_amp)) in enumerate(zip(rows, flat)):
+#         if row >= 0:
+#             chi2[i] = np.sum(((y - 10.0 ** log_amp * flux[row] * red ** ebv) / err) ** 2)
+#
+#     return chi2.reshape(theta.shape[:2])
+#
+#
+# def stuck_chains(idata, k=1.5, dchi2=20.0):
+#     """
+#     Boolean mask of the chains to keep. A chain is dropped only if its median chi2 is both more than `dchi2` above
+#     the best chain and above the outlier fence Q3 + k * IQR of the chain medians.
+#     """
+#
+#     med = np.median(chain_chi2(idata), axis=1)
+#     q1, q3 = np.percentile(med, (25, 75))
+#     keep = (med - med.min() <= dchi2) | (med <= q3 + k * (q3 - q1))
+#
+#     if not keep.all():
+#         _logger.warning(f'{int((~keep).sum())} of the {keep.size} chains dropped as stuck: median chi2 above the '
+#                         f'best chain by {np.round(np.sort(med[~keep] - med.min()), 1).tolist()}.')
+#
+#     return keep
+
+def load_trace(trace_pname, drop_stuck=False, k=1.5, dchi2=20.0, band_draws=1000, seed=None):
+    """
+    Loads a SSP_sampler trace and applies the post-sampling corrections.
+
+    drop_stuck: remove the chains stuck far from the others (see stuck_chains for k and dchi2). The fit results
+    are recomputed from the remaining chains, using `band_draws` and `seed` for the predictive band.
+    """
+
+    idata = from_netcdf(trace_pname)
+
+    # if drop_stuck:
+    #     keep = stuck_chains(idata, k, dchi2)
+    #     if not keep.all():
+    #         if keep.sum() < 2:
+    #             raise SpecSyError(f'Only {int(keep.sum())} chain(s) left after removing the stuck chains from '
+    #                               f'{trace_pname}. Try a larger dchi2 or k, or drop_stuck=False.')
+    #         idata = idata.isel(chain=np.flatnonzero(keep))
+    #         update_fit_results(idata, band_draws=band_draws, seed=seed)
+
+    return idata

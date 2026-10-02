@@ -9,7 +9,8 @@ log_address = Path(f'D:/Pycharm Projects/CEERs_field/reduction_v2/measurements/0
 log = lime.load_log(log_address)
 lime.normalize_fluxes(log, norm_list='H1_4862A')
 
-rc = pn.RedCorr(R_V=3.1, law='G03 LMC', cHbeta=cHbeta)
+from pyneb import RedCorr
+rc = RedCorr(R_V=3.1, law='G03 LMC', cHbeta=cHbeta)
 e_corr = rc.getCorr(log.wavelength.to_numpy(), rel_wave=4862)
 log['line_int'] = log['line_flux'] * e_corr
 

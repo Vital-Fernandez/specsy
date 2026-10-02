@@ -1,11 +1,10 @@
 [metadata]
 name = 'specsy'
-version = "0.10.0"
-emissivity_fname = 'emissivity_grids_pyneb_1.1.30_v0.9.2.nc'
+version = "0.11.0"
+emissivity_fname = 'emissivity_grids_pyneb_1.1.32_v0.10.0.nc'
 
 [emissivity_grid]
-
-line_selection = ["Ne5_3345A", "Ne5_3426A", "H1_3704A", "H1_3722A", "O2_3726A",
+line_selection = ["He2_1640A", "O3_1661A", "O3_1666A", "Ne5_3345A", "Ne5_3426A", "H1_3704A", "H1_3722A", "O2_3726A",
                   "O2_3729A", "H1_3734A", "H1_3750A", "H1_3771A", "H1_3798A", "H1_3835A",
                   "Ne3_3869A", "He1_3889A", "H1_3889A", "Ne3_3968A", "H1_3970A",
                   "He1_4026A", "S2_4069A", "S2_4076A", "H1_4102A",
@@ -68,28 +67,41 @@ Ne3 = ["Normal",5.0,5.0,1.0,0.0]
 Fe3 = ["Normal",5.0,5.0,1.0,0.0]
 
 [stellar]
-source_list = ['BPASS', 'starburst99', 'pystarburst99']
+ssp_params = ['source', 'library',
+              'age', 'metallicity', 'alpha',
+              'imf', 'low_imf_exp', 'high_imf_exp', 'low_imf_mass', 'high_imf_mass',
+              'fpath']
+source_list = ['BPASS', 'starburst99', 'pystarburst99', 'VMS_BPASS']
 
-[stellar.ssp.BPASS]
-z_keys.Zem5 = 1e-05
-z_keys.Zem4 = 0.0001
-z_keys.Z001 = 0.001
-z_keys.Z002 = 0.002
-z_keys.Z003 = 0.003
-z_keys.Z004 = 0.004
-z_keys.Z006 = 0.006
-z_keys.Z008 = 0.008
-z_keys.Z010 = 0.01
-z_keys.Z014 = 0.014
-z_keys.Z020 = 0.02
-z_keys.Z030 = 0.03
-z_keys.Z040 = 0.04
+[stellar.ssp.synthesis]
+params = ['age', 'met', 'ebv', 'amp']
+prior_lowbounds = [6.0, -3.0, 0.01, -20.0]
+prior_highbounds = [7.5, -1.5, 1.0, 1.0]
 
+[stellar.ssp.bpass]
 log_age_arr = [ 6.0,  6.1,  6.2,  6.3,  6.4,  6.5,  6.6,  6.7,  6.8,  6.9,  7.0 ,
                 7.1,  7.2,  7.3,  7.4,  7.5,  7.6,  7.7,  7.8,  7.9,  8.0,  8.1,
                 8.2,  8.3,  8.4,  8.5,  8.6,  8.7,  8.8,  8.9,  9.0 , 9.1,  9.2,
                 9.3,  9.4,  9.5,  9.6,  9.7,  9.8,  9.9, 10.0 , 10.1, 10.2, 10.3,
                 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0 ]
+bounds = [[6, 7.5], [-5.0 , -1.39794001], [0.0, 3], [-20, 2]]
+
+
+[stellar.ssp.bpass.z_keys]
+Zem5 = 1e-05
+Zem4 = 0.0001
+Z001 = 0.001
+Z002 = 0.002
+Z003 = 0.003
+Z004 = 0.004
+Z006 = 0.006
+Z008 = 0.008
+Z010 = 0.01
+Z014 = 0.014
+Z020 = 0.02
+Z030 = 0.03
+Z040 = 0.04
+
 
 [stellar.ssp.starburst99]
 z_keys.Z001 = 0.001

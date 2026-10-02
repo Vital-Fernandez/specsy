@@ -10,8 +10,8 @@ from lime import label_decomposition
 from lime.plotting.plots import save_close_fig_swicth
 from lime.plotting.format import Themer
 from specsy import _setup_cfg
+from specsy.io import SpecSyError, specsy_cfg, load_ssp_trace_results
 from specsy.tools import linear_regression
-from specsy.io import SpecSyError, specsy_cfg
 
 try:
     from bokeh.plotting import figure, show, save
@@ -684,3 +684,153 @@ def az_flux_grid(sampling_result, fname=None, n_cols=5, fig_cfg=None, in_fig=Non
     #              'axes.titlesize': 16, 'axes.titlepad': 10}
     # size_conf = size_conf if fig_cfg is None else {**size_conf, **fig_cfg}
 
+
+def ssp_fitting_infograph(trace, fname=None, param_names=None, truth_dict=None, title=None):
+
+
+    param_names = param_names if param_names is not None else ('log_age', 'log_Z', 'ebv', 'log_A')
+
+    theta, best_model, band, nodes, stats = load_ssp_trace_results(trace, param_names)
+
+    names = list(param_names)
+    n = len(names)
+
+    # True values: the argument takes precedence over those stored in the trace
+    ref = None
+    if truth_dict is not None:
+        ref = {'log_age': float(truth_dict['log_age']), 'log_Z': float(np.log10(truth_dict['metallicity'])),
+               'ebv': float(truth_dict['ebv']), 'log_A': float(np.log10(truth_dict['mass'] / 1e6))}
+
+    elif 'truth' in trace.outputs:
+        ref = dict(zip(names, trace.outputs['truth'].values))
+
+    # Initial values of the sampler (absent in traces saved before p0 was stored)
+    p0 = None
+    if 'p0' in trace.outputs:
+        p0 = dict(zip(names, trace.outputs['p0'].values))
+
+    # Bootstrap initial values (only present if the p0 bootstrap was requested)
+    p0_arr = None
+    if 'p0_arr' in trace.outputs:
+        p0_arr = dict(zip(names, trace.outputs['p0_arr'].values.T))
+
+    cd = trace.inputs
+    x, y, mask = cd['wave'].values, cd['lum'].values, cd['mask'].values.astype(bool)
+
+    fig = plt.figure(figsize=(16, 7))
+    gs = fig.add_gridspec(2, 2, height_ratios=[2, 1], width_ratios=[2, 1.3])
+    ax0 = fig.add_subplot(gs[0, 0])
+    ax1 = fig.add_subplot(gs[1, 0], sharex=ax0)
+    ax0.tick_params(labelbottom=False)
+
+    # Shade masked-out regions (mask True = fitted)
+    for lo, hi in np.flatnonzero(np.diff(np.r_[False, ~mask, False])).reshape(-1, 2):
+        for ax in (ax0, ax1):
+            ax.axvspan(x[lo], x[min(hi, x.size - 1)], alpha=0.5, color='lightgrey', lw=0)
+
+    ax0.step(x, y, color='black', lw=1, label='Input spectrum', zorder=1)
+
+    if band is not None:
+        ax0.fill_between(x, band[0], band[2], alpha=0.25, color='teal', lw=0, label='Predictive 16-84%', zorder=0)
+
+    label = f'Optimal Model (log(age)={theta[0]:.2f}, Z={10 ** theta[1]:.4f}, E(B-V)={theta[2]:.2f})'
+    ax0.step(x, best_model, color='royalblue', lw=1, label=label, zorder=500)
+
+    # Unpack the fit spectrum and the nebular
+    cd = trace.inputs
+    row = np.flatnonzero(np.isclose(cd['age_node'].values, theta[0]) & np.isclose(cd['z_node'].values, theta[1]))[0]
+    scale = 10.0 ** theta[3] * cd['red_corr'].values ** theta[2]
+    neb = scale * cd['grid_neb'].values[row] if 'grid_neb' in cd.data_vars else None
+    star = scale * cd['grid_flux'].values[row] - (0 if neb is None else neb)
+
+    if neb is not None:
+        ax0.step(x, star, color='darkorange', lw=0.8, label='Stellar', zorder=400)
+        ax0.step(x, neb, color='crimson', lw=0.8, label='Nebular continuum', zorder=400)
+
+    ax0.set_ylabel(r"L$_{\odot}$ $\AA^{-1}$")
+    if title is not None:
+        ax0.set_title(title, weight='semibold')
+    ax0.legend(loc='best')
+
+    ax1.step(x, (y - best_model) / y, color='royalblue', lw=1)
+    ax1.axhline(0, color='black')
+    ax1.set_ylabel('Residuals')
+    ax1.set_ylim(-0.7, 0.7)
+    ax1.set_xlabel(r"Wavelength ($\AA$)")
+
+    # Scatter matrix nested in the ax2 slot: histograms on the diagonal, scatter in the lower triangle
+
+    # Marginal posterior percentiles (p16, p50, p84) of each parameter
+    pct = {q: stats[q].to_dict() for q in ('p16', 'p50', 'p84')}
+    samples = {k: trace.posterior[k].values.ravel() for k in names}
+
+    sub = gs[0, 1].subgridspec(n, n, wspace=0.08, hspace=0.08)
+    mat = np.empty((n, n), dtype=object)
+    for i in range(n):
+        for j in range(n):
+            if j > i:
+                continue
+            ax = fig.add_subplot(sub[i, j], sharex=mat[0, j] if i > 0 else None)
+            mat[i, j] = ax
+            if i == j:
+                ax.hist(samples[names[i]], bins=30, color='teal', alpha=0.7)
+                ax.axvspan(pct['p16'][names[i]], pct['p84'][names[i]], color='gray', alpha=0.3)
+                ax.axvline(pct['p50'][names[i]], color='black', lw=1.5)
+                if p0 is not None:
+                    ax.axvline(p0[names[i]], color='blue', ls='--', lw=1.5)
+                if ref is not None:
+                    ax.axvline(ref[names[i]], color='red', ls='-', lw=1.5)
+                ax.set_yticks([])
+            else:
+                ax.scatter(samples[names[j]], samples[names[i]], s=3, alpha=0.1, color='teal', rasterized=True)
+                if p0_arr is not None:
+                    ax.scatter(p0_arr[names[j]], p0_arr[names[i]], s=6, alpha=0.3, color='blue', lw=0, zorder=1.5,
+                               rasterized=True)
+                ax.axvspan(pct['p16'][names[j]], pct['p84'][names[j]], color='gray', alpha=0.2)
+                ax.axhspan(pct['p16'][names[i]], pct['p84'][names[i]], color='gray', alpha=0.2)
+                ax.axvline(pct['p50'][names[j]], color='black', lw=0.8)
+                ax.axhline(pct['p50'][names[i]], color='black', lw=0.8)
+                if p0 is not None:
+                    ax.axvline(p0[names[j]], color='blue', ls='--', lw=0.8)
+                    ax.axhline(p0[names[i]], color='blue', ls='--', lw=0.8)
+                if ref is not None:
+                    ax.axvline(ref[names[j]], color='red', ls='-', lw=0.8)
+                    ax.axhline(ref[names[i]], color='red', ls='-', lw=0.8)
+                    ax.scatter(ref[names[j]], ref[names[i]], marker='*', s=120, color='red', edgecolor='white', zorder=11)
+            # Labels only on the outer edges
+            if i == n - 1:
+                ax.set_xlabel(names[j])
+            else:
+                ax.tick_params(labelbottom=False)
+            if j == 0 and i > 0:
+                ax.set_ylabel(names[i])
+            elif j > 0:
+                ax.tick_params(labelleft=False)
+            ax.tick_params(labelsize=7)
+
+    # Row of trace plots (one per parameter, all chains overlaid) in the lower-right slot
+    # (the empty top row of the subgrid leaves room for the x labels of the scatter matrix above)
+    sub_tr = gs[1, 1].subgridspec(2, n, height_ratios=[0.5, 1], wspace=0.45, hspace=0)
+    ax_tr = []
+    for k, name in enumerate(names):
+        ax = fig.add_subplot(sub_tr[1, k])
+        chains = trace.posterior[name].values  # (chain, draw)
+        ax.plot(np.arange(chains.shape[1]), chains.T, lw=0.3, alpha=0.25, color='teal', rasterized=True)
+        ax.axhspan(pct['p16'][name], pct['p84'][name], color='gray', alpha=0.3)
+        ax.axhline(pct['p50'][name], color='black', lw=1.5)
+        if p0 is not None:
+            ax.axhline(p0[name], color='blue', ls='--', lw=1.5)
+        if ref is not None:
+            ax.axhline(ref[name], color='red', ls='-', lw=1.5)
+        ax.set_xlabel(name, fontsize=9)
+        ax.tick_params(labelsize=7)
+        ax_tr.append(ax)
+
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.95, bottom=0.09, wspace=0.15, hspace=0.1)
+
+    if fname is not None:
+        fig.savefig(fname, bbox_inches='tight')
+    else:
+        plt.show()
+
+    return fig, (ax0, ax1, mat, ax_tr)

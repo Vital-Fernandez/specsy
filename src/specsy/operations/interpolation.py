@@ -1,7 +1,12 @@
 import itertools
 import numpy as np
-import pytensor.tensor as tt
-from pytensor import function as pt_function
+
+try:
+    import pytensor.tensor as tt
+    from pytensor import function as pt_function
+    pytensor_check = True
+except ImportError:
+    pytensor_check = False
 
 from specsy.io import load_HII_CHI_MISTRY_grid, load_emis_grid
 

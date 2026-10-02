@@ -1,8 +1,13 @@
-from time import time
-import pymc as pm
 import numpy as np
-from pytensor import tensor as tt
+from time import time
 from specsy.models.fluxes_line import FLUX_EQUATION_DICT
+
+try:
+    from pytensor import tensor as tt
+    import pymc as pm
+    pytensor_check = True
+except ImportError:
+    pytensor_check = False
 
 
 def set_prior(param, prior_dict, abund_type=False, name_param=None):
@@ -35,6 +40,7 @@ def set_prior(param, prior_dict, abund_type=False, name_param=None):
 
 def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQDB):
 
+    # This is the good one
 
     # Convenience arrays
     merge_d = inputs.merge_dict
@@ -77,14 +83,6 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
 
 
             else:
-                # flux = 0
-                # merge_in = merge_d[inputs.labels[i]]
-                # for j in merge_in.range_arr:
-                #     tem = model[merge_in.temp_id_arr[j]] if merge_in.temp_eq_check[j] else tem_EQDB[merge_in.eq_tem_arr[j]](model[merge_in.temp_id_arr[j]])
-                #     den = model[merge_in.den_id_arr[j]] if merge_in.den_eq_check[j] else den_EQDB[merge_in.eq_den_arr[j]](model[merge_in.den_id_arr[j]])
-                #     emis = emis_interp[merge_in.labels[j]](tem, den)
-                #     flux = flux + FLUX_EQUATION_DICT[merge_in.eq_flux_arr[j]](abund=model[merge_in.ion_arr[j]], emis=emis,
-                #                                                               flambda=inputs.flambda_arr[i], cHbeta=cHbeta)
                 flux_terms = []
                 merge_in = merge_d[inputs.labels[i]]
                 for j in merge_in.range_arr:
@@ -107,79 +105,10 @@ def direct_method_multi_region(inputs, emis_interp, prior_dict, tem_EQDB, den_EQ
     return model
 
 
-def direct_method_multi_region_orig(inputs, emis_interp, prior_dict, tem_EQDB, den_EQDB):
-
-    # Observables
-    labels_arr = inputs.labels
-    input_obs = np.log10(inputs.flux_arr)
-    input_err = np.log10(1 + inputs.err_arr / inputs.flux_arr)
-    ion_arr = inputs.ion_arr
-    flambda_arr = inputs.flambda_arr
-
-    # Structure array
-    temp_id_arr = inputs.temp_id_arr
-    den_id_arr = inputs.den_id_arr
-    eq_tem_arr = inputs.eq_tem_arr
-    eq_den_arr = inputs.eq_den_arr
-    eq_flux_arr = inputs.eq_flux_arr
-
-    # Convenience arrays
-    range_arr = np.arange(labels_arr.size)
-    temp_eq_check = eq_tem_arr == '-'
-    den_eq_check = eq_den_arr == '-'
-    unique_species = np.unique(ion_arr)
-    unique_params = np.unique(np.concatenate([temp_id_arr, den_id_arr]))
-
-    # PyMC model
-    with (pm.Model(coords={"lines": labels_arr}) as model):
-
-        # Save input fluxes
-        pm.Data('input_flux', inputs.flux_arr, dims='lines')
-        pm.Data('input_err', inputs.err_arr, dims='lines')
-
-        # Container to store the models
-        theo_flux = tt.zeros(labels_arr.size)
-
-        # Compile the abundances
-        for ion in unique_species:
-            if ion != 'H1':
-                set_prior(ion, prior_dict, abund_type=True, name_param=ion)
-        pm.Data('H1', 1.0)
-
-        # Extinction
-        cHbeta = set_prior('cHBeta', prior_dict)
-
-        # Generate the free temperatures and densities
-        for param in unique_params:
-            set_prior(param, prior_dict)
-
-        # Loop through the lines and compute the fluxes
-        for i in range_arr:
-
-            # Compute the emissivity
-            tem = model[temp_id_arr[i]] if temp_eq_check[i] else tem_EQDB[eq_tem_arr[i]](model[temp_id_arr[i]])
-            den = model[den_id_arr[i]] if den_eq_check[i] else den_EQDB[eq_den_arr[i]](model[den_id_arr[i]])
-            emis = emis_interp[labels_arr[i]](tem, den)
-
-            # Compute the flux
-            flux = FLUX_EQUATION_DICT[eq_flux_arr[i]](abund=model[ion_arr[i]], emis=emis,
-                                                      flambda=flambda_arr[i], cHbeta=cHbeta)
-
-            theo_flux = tt.inc_subtensor(theo_flux[i], flux)
-
-        # Stored the fluxes and input fluxes, uncertainty
-        pm.Deterministic('theo_flux', theo_flux, dims='lines')
-
-        # Likelihood
-        pm.Normal("likelihood", mu=theo_flux, sigma=input_err, observed=input_obs, dims='lines')
-
-    return model
 
 
 def run_model(model, draws=1000, tune=2000, target_accept=0.8, chains=8, cores=8,
               nuts_sampler='numpyro', callback=None):
-
-    # nuts_sampler_kwargs = None if nuts_sampler != 'nutpie' else {"backend": "jax", 'gradient_backend': "jax"}
 
 
     '''
@@ -192,9 +121,7 @@ def run_model(model, draws=1000, tune=2000, target_accept=0.8, chains=8, cores=8
             backend: str, optional.
         Which computational backend to use. Recommended to be one of "numba", "c", and "jax".
         May require installing extra dependencies.
-        
-        
-        
+
     '''
 
     with model:
