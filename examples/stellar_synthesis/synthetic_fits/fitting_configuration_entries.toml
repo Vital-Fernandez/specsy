@@ -47,6 +47,17 @@ cores       = 1
 band_draws  = 1000
 rng_seed    = 1234
 
+[W512_x2_extra]                      # 128 000 evaluations
+sampler     = "DEMetropolis"
+n_walkers   = 512
+draws       = 62
+tune        = 1000
+spread      = 0.10
+spread_step = true
+cores       = 1
+band_draws  = 1000
+rng_seed    = 1234
+
 [TL_w128_int50]                # 64 000 evaluations
 sampler     = "DEMetropolis"
 n_walkers   = 128

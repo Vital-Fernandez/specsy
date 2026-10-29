@@ -7,18 +7,18 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from matplotlib import pyplot as plt, rc_context
-from matplotlib.lines import Line2D
 from astropy.io import fits
 from astropy.table import Table
 
+from functools import cached_property
 from lime import save_frame, load_frame
+from lime.tools import au
 from lime.workflow import spectrum_resampling
-from lime.plotting.plots import _NO_FIG, save_close_fig_swicth
 from specsy.io import specsy_cfg, SpecSyError
 from specsy.models import tools_pySB99 as pySB99
-from lime.tools import au
-from astropy import constants as const
+from specsy.plotting.plots import StellarBinariesPlots
+from specsy.variables import Q_LIMITS_LAMBDA, HC_CGS, MIRI_ION_LINES, HC_EV_ANGSTROM, _VMS_BPASS_DEFAULTS, VMS_BPASS_CFG, VMS_ZERO_AGE_MYR, _VMS_PATTERN, _SING_PATTERN
+
 
 # Logger
 _logger = getLogger('SpecSy')
@@ -399,7 +399,7 @@ def _parse_pysb99_folder(folder_list, load_spectrum, sun_luminosity=3.83e33):
             wave_arr = np.loadtxt(wave_path)
 
             # Read time axis (in years, linear)
-            times_path = folder / 'timesteps.txt'
+            times_path = folder / 'times_spectra.txt'
             if not times_path.exists():
                 raise SpecSyError(f'Missing timesteps.txt in {folder}')
 
@@ -417,21 +417,19 @@ def _parse_pysb99_folder(folder_list, load_spectrum, sun_luminosity=3.83e33):
                 flux_matrix = np.power(10, flux_matrix[idx_0:, :])/sun_luminosity
 
             for i, log_age in enumerate(log_ages):
-                binary_list.append(Binary(
-                    source='pystarburst99',
-                    library=meta['library'],
-                    metallicity=meta['metallicity'],
-                    alpha=0.0,
-                    imf='kroupa',
-                    age=log_age,
-                    fpath=str(folder),
-                    wavelength=wave_arr if load_spectrum else None,
-                    flux=flux_matrix[i, :] if load_spectrum else None,
-                    low_imf_exp=meta.get('low_imf_exp'),
-                    high_imf_exp=meta.get('high_imf_exp'),
-                    low_imf_mass=meta.get('low_imf_mass'),
-                    high_imf_mass=meta.get('high_imf_mass'),
-                ))
+                binary_list.append(Binary(source='pystarburst99',
+                                          library=meta['library'],
+                                          metallicity=meta['metallicity'],
+                                          alpha=0.0,
+                                          imf='kroupa',
+                                          age=log_age,
+                                          fpath=str(folder),
+                                          wavelength=wave_arr if load_spectrum else None,
+                                          flux=flux_matrix[i, :] if load_spectrum else None,
+                                          low_imf_exp=meta.get('low_imf_exp'),
+                                          high_imf_exp=meta.get('high_imf_exp'),
+                                          low_imf_mass=meta.get('low_imf_mass'),
+                                          high_imf_mass=meta.get('high_imf_mass')))
 
     return binary_list
 
@@ -477,22 +475,14 @@ def bpass_file_manager(fname, load_spectrum, metal_map=specsy_cfg['stellar']['ss
     return params, wave_arr, flux_arr
 
 
-# ── VMS_BPASS (Martins+25) ───────────────────────────────────────────────────
-# Two filename flavours coexist in the same folder:
-#   pop_vms_bpass_ZKEY_AGEmyr_MXXX_(gr|grzsc)[.neb].dat  -> age < 2.5 Myr, VMS up to 300 Msun
-#   bpass_(sing|bin)_imfXXX_YYY.ZKEY.AGEmyr[.neb].dat    -> older ages, no VMS
-# "gr"/"grzsc": mass loss rates are not/are scaled with metallicity.
+def _vms_bpass_ext_map():
 
-_VMS_BPASS_DEFAULTS = {'z_keys': {'zsmc':  0.002, 'z0p1':  0.001, 'z0p01': 0.0001,      # pop_vms_ files
-                                  'z002':  0.002, 'z001':  0.001, 'z1em4': 0.0001}}     # bpass_sing_ files
+    """Metallicity -> BPASS key (e.g. 0.0001 -> 'zem4') for the VMS_BPASS metallicities."""
 
-VMS_BPASS_CFG = specsy_cfg['stellar']['ssp'].get('VMS_BPASS', _VMS_BPASS_DEFAULTS)
+    bpass_keys = specsy_cfg['stellar']['ssp']['bpass']['z_keys']
+    vms_mets = set(VMS_BPASS_CFG['z_keys'].values())
 
-VMS_ZERO_AGE_MYR = 0.0001      # The "0myr" models have no logarithm: they are floored at this age
-
-_VMS_PATTERN = re.compile(r'^pop_vms_bpass_(z[\w]+?)_([\dp]+)myr_M(\d+)_(gr|grzsc)(\.neb)?$')
-
-_SING_PATTERN = re.compile(r'^bpass_(sing|bin)_(imf\d+_\d+)\.(z[\w]+)\.([\dp]+)myr(\.neb)?$')
+    return {met: key for key, met in bpass_keys.items() if met in vms_mets}
 
 
 def _myr_string_to_log_age(age_str, zero_age_myr=VMS_ZERO_AGE_MYR):
@@ -686,23 +676,6 @@ def _to_python_scalar(value):
 _NOT_LOADED_MSG = 'Please create the object with StellarBinaries.from_source(..., load_spectra=True).'
 
 
-# Physical constants
-L_SUN_CGS = const.L_sun.cgs.value                                       # erg s^-1
-HC_CGS = (const.h * const.c).cgs.value                                  # erg cm
-HC_EV_ANGSTROM = (const.h * const.c).to(au.eV * au.AA).value            # eV Å (lambda = hc / E)
-Q_LIMITS_LAMBDA = {'HI': 911.753, 'HeI': 504.259, 'HeII': 227.838}      # Å
-
-
-# Energy (eV) to create the ion of each MIRI line, i.e. the ionization potential of the previous stage
-MIRI_ION_LINES = {r'[Ne II] 12.81 $\mu$m': 21.56,
-                 r'[S IV] 10.51 $\mu$m': 34.86,
-                 r'[Ne III] 15.56 $\mu$m': 40.96,
-                 r'[O IV] 25.89 $\mu$m': 54.9,
-                 r'[Ar V] 7.90|13.10 $\mu$m': 59.8,
-                 r'[Ne V] 14.32|24.32 $\mu$m': 97.1,
-                 r'[Ne VI] 7.65 $\mu$m': 126.2}
-
-
 def log_ionizing_photons(wave_arr, flux_arr, units_wave, units_flux, lambda_limit=Q_LIMITS_LAMBDA['HI']):
 
     """
@@ -873,7 +846,7 @@ class SSPGrid:
     @classmethod
     def from_idata(cls, idata):
         """Rebuilds the grid from the constant_data group of a trace."""
-        cd = idata.constant_data
+        cd = idata.inputs
         return cls(wave=cd['wave'].values, lum=cd['lum'].values, lum_err=cd['lum_err'].values,
                    mask=cd['mask'].values, red_corr=cd['red_corr'].values, grid_flux=cd['grid_flux'].values,
                    age_node=cd['age_node'].values, z_node=cd['z_node'].values,
@@ -1078,7 +1051,7 @@ class StellarBinaries:
             # Get the metallicity map to reverse-lookup the extension names
             sources = [s.strip() for s in file_source.split(',')]
             if len(sources) == 1 and sources[0] == 'vms_bpass':
-                ext_to_metal = {_metallicity_to_key(v): float(v) for v in set(VMS_BPASS_CFG['z_keys'].values())}
+                ext_to_metal = {key.lower(): met for met, key in _vms_bpass_ext_map().items()}
             elif len(sources) == 1 and sources[0] in specsy_cfg['stellar']['ssp']:
                 z_keys = specsy_cfg['stellar']['ssp'][sources[0]]['z_keys']
                 ext_to_metal = {v_str: float(v) for v_str, v in z_keys.items()}
@@ -1095,9 +1068,9 @@ class StellarBinaries:
                 if 'METAL' in hdu.header:
                     metallicity = float(hdu.header['METAL'])
                 elif ext_to_metal is not None:
-                    if sources[0] == 'bpass':
+                    if sources[0] in ('bpass', 'vms_bpass'):
                         metallicity = ext_to_metal[hdu.name.lower()]
-                    elif sources[0] in ('pystarburst99', 'vms_bpass'):
+                    elif sources[0] == 'pystarburst99':
                         metallicity = ext_to_metal[hdu.name]
                     else:
                         raise SpecSyError(
@@ -1152,7 +1125,7 @@ class StellarBinaries:
                 pySB99_Z_KEYS = specsy_cfg['stellar']['ssp']['pystarburst99']['z_keys']
                 ext_map = {met_val: _metallicity_to_key(met_val) for name, met_val in pySB99_Z_KEYS.items()}
             elif sel_source == 'vms_bpass':
-                ext_map = {met_val: _metallicity_to_key(met_val) for met_val in sel_mets}
+                ext_map = _vms_bpass_ext_map()
                 if len(set(ext_map.values())) != len(ext_map):
                     raise SpecSyError(f'The VMS_BPASS metallicities {list(sel_mets)} do not produce unique '
                                       f'extension names ({sorted(ext_map.values())}). Please provide an "ext_map".')
@@ -1240,6 +1213,13 @@ class StellarBinaries:
             wave_mask &= wave_arr <= wmax
 
         return wave_arr[wave_mask], flux_arr[wave_mask]
+
+
+    @cached_property
+    def plot(self) -> StellarBinariesPlots:
+        return StellarBinariesPlots(self)
+
+
 
 
     def get_binaries(self, **params):
@@ -1356,7 +1336,6 @@ class StellarBinaries:
 
         return self.from_frame(selection, wave_list, flux_list)
 
-
     def to_fits(self, fname, libraries=None, wmin=None, wmax=None, ext_map=None, met_limits=None, age_limits=None,
                 disp_intvl=None, pixel_width=None, pixel_number=None, constant_pixel_width=True, idcs_ssp=None):
 
@@ -1380,33 +1359,7 @@ class StellarBinaries:
         return
 
 
-    def ionizing_photons(self, edge='HI', flux_to_cgs=L_SUN_CGS, libraries=None, met_limits=None, age_limits=None, idcs_ssp=None):
-
-        """
-        log10 Q (photons s^-1) blueward of `edge` ('HI', 'HeI', 'HeII' or a wavelength in Å) for the selected
-        spectra, as a Series with the frame index. The selection arguments behave as in to_stellar_binaries.
-        Use the stellar spectra on their full wavelength range (before any crop).
-        """
-
-        edge_wave = Q_LIMITS_LAMBDA[edge] if isinstance(edge, str) else float(edge)
-        idcs = self._selection_index(idcs_ssp, libraries, met_limits, age_limits)
-
-        n_missing = int((~self._loaded_mask()[idcs.to_numpy()]).sum())
-        if n_missing > 0:
-            raise SpecSyError(f'{n_missing} of the {len(idcs)} selected spectra are not loaded. {_NOT_LOADED_MSG}')
-
-        # The nebular files do not carry the bare stellar ionizing output
-        neb_libs = [lib for lib in self.frame.loc[idcs, 'library'].unique() if str(lib).endswith('_neb')]
-        if neb_libs:
-            _logger.warning(f'The selection includes the nebular libraries {neb_libs}. Their flux below '
-                            f'{edge_wave:.1f} Å may not be the stellar ionizing output.')
-
-        log_q = [log_ionizing_photons(*self._spectrum(idx), edge=edge_wave, flux_to_cgs=flux_to_cgs) for idx in idcs]
-
-        return pd.Series(log_q, index=idcs, name=f'logQ_{edge}')
-
-
-    def to_ionization_table(self, fname, edge='HI', flux_to_cgs=L_SUN_CGS, ext_map=None, log_q_floor=0.0,
+    def to_ionization_table(self, fname, edge='HI', ext_map=None, log_q_floor=0.0,
                             libraries=None, met_limits=None, age_limits=None, idcs_ssp=None):
 
         """
@@ -1415,7 +1368,7 @@ class StellarBinaries:
         and BPASS above) are merged per metallicity. Returns the metallicity x age grid as a DataFrame.
         """
 
-        log_q = self.ionizing_photons(edge, flux_to_cgs, libraries, met_limits, age_limits, idcs_ssp)
+        log_q = self.ionizing_photons(edge, libraries, met_limits, age_limits, idcs_ssp)
         selection = self.frame.loc[log_q.index, ['metallicity', 'age', 'library']].assign(log_q=log_q)
 
         # One spectrum per grid node
@@ -1438,7 +1391,9 @@ class StellarBinaries:
             raise SpecSyError(f'{n_empty} metallicity-age nodes have no spectrum. SESAMME needs the same ages at '
                               f'every metallicity: please adjust the selection.')
 
-        ext_map = {met: _metallicity_to_key(met) for met in grid.index} if ext_map is None else ext_map
+        if ext_map is None:
+            ext_map = (_vms_bpass_ext_map() if self.source == 'vms_bpass' else {met: _metallicity_to_key(met) for met in grid.index})
+
         table = Table([[ext_map[met] for met in grid.index]] + [grid[age].to_numpy() for age in grid.columns],
                       names=['Z'] + [str(float(age)) for age in grid.columns])
         table.write(fname, format='ascii', overwrite=True)
@@ -1455,209 +1410,31 @@ class StellarBinaries:
         return
 
 
-    def plot_age_metallicity(self, libraries=None, fig_cfg=None, fname=None):
+    def ionizing_photons(self, edge='HI', libraries=None, met_limits=None, age_limits=None, idcs_ssp=None):
 
-        # Group the selected rows by library
-        selection = self.frame.loc[self._library_mask(libraries, 'plot')]
-        library_groups = selection.groupby('library', sort=False, dropna=False)
-        use_colors = library_groups.ngroups > 1
+        """
+        log10 Q (photons s^-1) blueward of `edge` ('HI', 'HeI', 'HeII' or a wavelength in Å) for the selected
+        spectra, as a Series with the frame index. The selection arguments behave as in to_stellar_binaries.
+        Use the stellar spectra on their full wavelength range (before any crop).
+        """
 
-        with rc_context(fig_cfg):
+        edge_wave = Q_LIMITS_LAMBDA[edge] if isinstance(edge, str) else float(edge)
+        idcs = self._selection_index(idcs_ssp, libraries, met_limits, age_limits)
 
-            fig, ax = plt.subplots(figsize=(8, 6))
-            for i, (lib, group) in enumerate(library_groups):
-                ax.scatter(group['age'], group['metallicity'], alpha=0.6, s=15,
-                           color=f'C{i}' if use_colors else 'C0',
-                           label=lib if use_colors else None)
+        n_missing = int((~self._loaded_mask()[idcs.to_numpy()]).sum())
+        if n_missing > 0:
+            raise SpecSyError(f'{n_missing} of the {len(idcs)} selected spectra are not loaded. {_NOT_LOADED_MSG}')
 
-            sources = sorted(self.frame['source'].unique(), key=str)
-            ax.set_title(f"Age-Metallicity coverage — source: {', '.join(map(str, sources))}")
-            ax.set_xlabel("log(Age/yr)")
-            ax.set_ylabel("Metallicity (Z)")
-            # ax.set_yscale('log')
-
-            if use_colors:
-                ax.legend(title='Library', markerscale=2)
-
-            plt.tight_layout()
-            if fname is None:
-                plt.show()
-            else:
-                plt.savefig(fname)
-
-        return
-
-
-    def plot_ionizing_hardness(self, ages_myr, libraries=None, energies=None, ion_lines=MIRI_ION_LINES, z_sun=None,
-                               ylim=None, lib_labels=None, fig_cfg=None, fname=None):
-
-        # Loaded spectra of the requested libraries and ages
-        selection = self.frame.loc[self._library_mask(libraries, 'plot') & self._loaded_mask()]
-        grid_ages = np.unique(selection['age'])
-
-        # Nearest grid age to each request
-        ages = np.log10(np.where(np.atleast_1d(ages_myr) == 0, VMS_ZERO_AGE_MYR, np.atleast_1d(ages_myr)) * 1e6)
-        nearest = grid_ages[np.abs(grid_ages[:, None] - ages[None, :]).argmin(axis=0)]
-        missing = ages[np.abs(nearest - ages) > 0.02]
-        if missing.size > 0:
-            raise SpecSyError(f'No grid age within 0.02 dex of log(age)={missing.tolist()}. Available ages (Myr): '
-                              f'{[float(f"{10 ** a / 1e6:.3g}") for a in grid_ages]}')
-
-        # Unpack the values
-        ages = np.unique(nearest)
-        mets = np.unique(selection['metallicity'])
-        libs = sorted(selection['library'].unique(), key=str)
-
-        # Check if the library has the nebular continuum
-        neb_libs = [lib for lib in selection['library'].unique() if str(lib).endswith('_neb')]
+        # The nebular files do not carry the bare stellar ionizing output
+        neb_libs = [lib for lib in self.frame.loc[idcs, 'library'].unique() if str(lib).endswith('_neb')]
         if neb_libs:
             _logger.warning(f'The selection includes the nebular libraries {neb_libs}. Their flux below '
-                            f'{Q_LIMITS_LAMBDA["HI"]:.1f} Å may not be the stellar ionizing output.')
+                            f'{edge_wave:.1f} Å may not be the stellar ionizing output.')
 
-        # Compute the ionization steps
-        energies = (13.6, 60.01) if energies is None else energies
-        energies = np.arange(energies[0], energies[1], 0.2)
-        edges = HC_EV_ANGSTROM / energies
+        log_q = [log_ionizing_photons(*self._spectrum(idx), self.units_wave, self.units_flux, lambda_limit=edge_wave)
+                 for idx in idcs]
 
-        # Figure format variables
-        n_cols = min(len(ages), 2)
-        n_rows = int(np.ceil(len(ages) / n_cols))
-
-        colors = {met: f'C{i}' for i, met in enumerate(mets)}
-        styles = {lib: ('-', '--', ':', '-.')[i % 4] for i, lib in enumerate(libs)}
-        lib_labels = {} if lib_labels is None else lib_labels
-        z_label = (lambda met: rf'$Z = {met / z_sun:.2g}\,Z_\odot$') if z_sun is not None else (lambda met: f'Z = {met}')
-
-        # Generate the figure
-        with rc_context(fig_cfg):
-
-            fig, axes = plt.subplots(n_rows, n_cols, sharex=True, sharey=True, squeeze=False)
-
-            # Check if the spectrum can produce ionization photons
-            without_Q_counter = 0
-            for ax, age in zip(axes.ravel(), ages):
-                group = selection.loc[np.isclose(selection['age'], age)]
-                for idx, row in group.iterrows():
-
-                    wave_arr, flux_arr = self._spectrum(idx)
-                    log_q0 = log_ionizing_photons(wave_arr, flux_arr, units_wave=self.units_wave, units_flux=self.units_flux)
-                    if not np.isfinite(log_q0):
-                        without_Q_counter += 1
-                        continue
-
-                    # Energies without photons are NaN, so the curve stops there
-                    log_q = np.array([log_ionizing_photons(wave_arr, flux_arr, self.units_wave, self.units_flux,
-                                                           lambda_limit=edge) for edge in edges])
-                    ratio = np.where(np.isfinite(log_q), 10 ** (log_q - log_q0), np.nan)
-                    ax.plot(energies, ratio, color=colors[row['metallicity']], linestyle=styles[row['library']])
-
-                # Ionization energies of the diagnostic lines
-                for label, energy in (ion_lines or {}).items():
-                    if energies[0] <= energy <= energies[-1]:
-                        ax.axvline(energy, color='black', linewidth=0.7, linestyle=':')
-                        ax.text(energy, 0.03, label, rotation=90, ha='right', va='bottom', fontsize=8,
-                                transform=ax.get_xaxis_transform())
-
-                ax.set_yscale('log')
-                ax.set_xlim(energies[0], energies[-1])
-                if ylim is not None:
-                    ax.set_ylim(*ylim)
-                ax.set_title(f'{10 ** age / 1e6:.3g} Myr')
-
-            if without_Q_counter > 0:
-                _logger.warning(f'{without_Q_counter} spectra have no flux below {Q_LIMITS_LAMBDA["HI"]:.1f} Å and were not plotted.')
-
-            # Unused panels
-            for ax in axes.ravel()[len(ages):]: ax.set_visible(False)
-
-            # Label the axes
-            for ax in axes[-1, :]: ax.set_xlabel('Energy, E [eV]')
-            for ax in axes[:, 0]: ax.set_ylabel(r'$Q(>E)\,/\,Q(>13.6\,\mathrm{eV})$')
-
-            # Colors for the metallicity and line styles for the library (if several)
-            handles = [Line2D([], [], color=colors[met], label=z_label(met)) for met in mets]
-            if len(libs) > 1:
-                handles += [Line2D([], [], color='0.3', linestyle=styles[lib], label=lib_labels.get(lib, lib))
-                            for lib in libs]
-
-            # Legend in first plot
-            axes[0, 0].legend(handles=handles, loc='upper right', fontsize='small')
-
-            plt.tight_layout()
-            if fname is None:
-                plt.show()
-            else:
-                plt.savefig(fname, bbox_inches='tight')
-                plt.close(fig)
-
-        return
-
-    def plot_spectra(self, fname=None, metallicity=None, age=None, metallicity_range=None, age_range=None,
-                     libraries=None, log_scale=False, in_fig=_NO_FIG, fig_cfg=None, ax_cfg=None, maximize=False):
-
-        # Display check for input figures
-        display_check = True if in_fig is _NO_FIG else False
-
-        # Select loaded rows matching the filters (exact values and inclusive ranges)
-        mask = self._library_mask(libraries, 'plot') & self._loaded_mask()
-        if metallicity is not None:
-            mask &= self.frame['metallicity'].isin(np.atleast_1d(metallicity)).to_numpy()
-        if metallicity_range is not None:
-            mask &= self.frame['metallicity'].between(*metallicity_range).to_numpy()
-        if age is not None:
-            mask &= self.frame['age'].isin(np.atleast_1d(age)).to_numpy()
-        if age_range is not None:
-            mask &= self.frame['age'].between(*age_range).to_numpy()
-
-        if not mask.any():
-            raise SpecSyError('No loaded binaries match the requested filters.')
-
-        selection = self.frame.loc[mask].sort_values(['metallicity', 'age'])
-
-        # Adjust the default theme
-        plt_cfg = {}
-        if fig_cfg is not None:
-            plt_cfg.update(fig_cfg)
-
-        with rc_context(plt_cfg):
-
-            self.fig = plt.figure() if (in_fig is None) or (in_fig is _NO_FIG) else in_fig
-            self.ax = self.fig.add_subplot()
-
-            # Default axis labels
-            ax_labels_cfg = {
-                'xlabel': 'Wavelength (Å)',
-                'ylabel': 'Flux',
-                'title': f'Stellar binary spectra — source: {self.source}',
-            }
-            if ax_cfg is not None:
-                ax_labels_cfg.update(ax_cfg)
-
-            # Color cycle across unique metallicities for visual grouping
-            unique_mets = np.unique(selection['metallicity'])
-            met_color = {m: f'C{i}' for i, m in enumerate(unique_mets)}
-
-            legend_entries = {}
-            for idx, row in selection.iterrows():
-                wave_arr, flux_arr = self._spectrum(idx)
-                label_key = f'Z={row["metallicity"]:.5f} | {row["library"]}'
-                self.ax.step(wave_arr, flux_arr, where='mid', alpha=0.7,
-                             linewidth=0.8, color=met_color[row['metallicity']],
-                             label=label_key if label_key not in legend_entries else None)
-                legend_entries[label_key] = True
-
-            self.ax.set(**ax_labels_cfg)
-
-            if log_scale:
-                self.ax.set_yscale('log')
-
-            if len(legend_entries) <= 20:
-                self.ax.legend(fontsize='small', title='Metallicity | Library')
-
-            plt.tight_layout()
-            save_close_fig_swicth(fname, 'tight', self.fig, maximize, display_check)
-
-        return
+        return Series(log_q, index=idcs, name=f'logQ_{edge}')
 
 
     def _single_spectrum(self, idcs, age, metallicity):
@@ -1958,12 +1735,12 @@ class StellarBinaries:
             target_grid = None if disp_intvl is None else np.asarray(disp_intvl, dtype=float)
             if target_grid is None:
                 target_grid, _, _ = spectrum_resampling(None, pixel_width, pixel_number, constant_pixel_width,
-                                                        wave_list[0], flux_list[0], None, None)
+                                                        wave_list[0], flux_list[0], None)
 
             empty_bins = 0
             for i, (wave_arr, flux_arr) in enumerate(zip(wave_list, flux_list)):
                 new_wave, new_flux, _ = spectrum_resampling(target_grid, pixel_width, pixel_number,
-                                                            constant_pixel_width, wave_arr, flux_arr, None, None)
+                                                            constant_pixel_width, wave_arr, flux_arr, None)
                 wave_list[i] = np.asarray(new_wave, dtype=float)
                 flux_list[i] = np.asarray(new_flux, dtype=float)
                 empty_bins += int(np.isnan(flux_list[i]).sum())

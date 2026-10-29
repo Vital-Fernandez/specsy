@@ -16,6 +16,7 @@ from specsy.io import SpecSyError, specsy_cfg, load_ssp_trace_results
 from specsy.models.nebular_continuum import nebular_continuum, ion_table_log_q, load_ionization_frame, NEB_GAMMA_WAVE, NEB_GAMMA_COEF
 from specsy.models.ssp import SSPGrid
 from specsy.models.extinction import extinction_curve, DEFAULT_RV
+from specsy.plotting.plots import plot_metallicity_age_map, Rectangle, plot_bad_pixels
 
 PARAM_NAMES = ('log_age', 'log_Z', 'ebv', 'log_A')
 MCMC_SAMPLERS = ('DEMetropolis', 'DEMetropolisZ', 'Metropolis')
@@ -440,8 +441,6 @@ def update_fit_results(idata, band_draws=1000, seed=None):
     return idata
 
 
-
-
 class SSP_sampler:
 
     def __init__(self, spec, stellar_binaries, red_law='CCM89', r_v=3.1, **params):
@@ -487,25 +486,48 @@ class SSP_sampler:
 
         return
 
-    def security_checks(self, wave_arr):
+    def security_checks(self):
+
+        # Unpack the spectrum
+        wave_arr, flux_arr, err_arr, mask_arr = self.spec.retrieve.spectrum(return_arrays=True)
+        mask_arr = ~mask_arr  # After inversion: True = pixel is used (not masked)
 
         # Check SSP wavelength uniformity
         if not self.stellar_ssp.uniform_dispersion:
             raise SpecSyError(f'The input SSP data set does not have a unique wavelength array')
 
+        # Check the unmasked pixels: finite wavelength, flux and error
+        nonfinite = {name: mask_arr & ~np.isfinite(arr)
+                     for name, arr in (('Wavelength', wave_arr), ('Flux', flux_arr), ('Uncertainty', err_arr))}
+
+        # Check the unmasked pixels: non-negative uncertainty (NaN compares False, so only real negatives are flagged)
+        neg_err = mask_arr & (err_arr < 0)
+
+        # Plot the problematic pixels before raising the errors
+        if any(bad.any() for bad in nonfinite.values()) or neg_err.any():
+            plot_bad_pixels(wave_arr, flux_arr, err_arr, mask_arr, nonfinite, neg_err)
+
+        for name, bad in nonfinite.items():
+            if bad.any():
+                raise SpecSyError(f'The input {name.lower()} array has {bad.sum()} non-finite (NaN/inf) unmasked '
+                                  f'pixels, first at index {np.flatnonzero(bad)[0]}')
+
+        if neg_err.any():
+            raise SpecSyError(f'The input uncertainty array has {neg_err.sum()} negative unmasked pixels, '
+                              f'first at index {np.flatnonzero(neg_err)[0]}')
+
         # Check SSP wavelength matches observation
         if not np.all(np.isclose(self.stellar_ssp.wave_series.at[0], wave_arr)):
             raise SpecSyError(f'The input SSP wavelength array does not match the observation wavelength array')
 
-        return
+        return wave_arr, flux_arr, err_arr, mask_arr
 
 
-    def prepare_inputs(self, wave_arr, flux_arr, err_arr, mask_arr, model=None, prior_bounds=None, initial_values=None,
-                       add_nebular=False, ion_frame=None, gamma_table=None, neb_grid=None, p0_bootstrap=False,
-                       rng_seed=None, **params):
+    def prepare_inputs(self, model=None, prior_bounds=None, initial_values=None, add_nebular=False, ion_frame=None,
+                       gamma_table=None, neb_grid=None, p0_bootstrap=False, plot_results=False, rng_seed=None, **params):
 
-        # Check the object spectrum and SSP match
-        self.security_checks(wave_arr)
+        # Unpack the spectrum data Check the object spectrum and SSP match
+        wave_arr, flux_arr, err_arr, mask_arr = self.security_checks()
 
         # Check model
         self.label_model = 'single_population_nearest' if model is None else model
@@ -567,15 +589,23 @@ class SSP_sampler:
                                     grid_neb=self.grid_neb if self.add_nebular else None,
                                     red_law=self.red_law, r_v=self.r_v)
 
-                # Get the initial coordinate for the fitting: a single fit to the observed flux or, if requested, the
-                # nanmean of the fits to p0_bootstrap flux realizations drawn from the uncertainties (True = 500)
+                # Get the initial coordinate: a single fit to the observed flux or, if requested, a bootstrap
                 n_boot = 500 if p0_bootstrap is True else int(p0_bootstrap or 0)
                 self.p0_arr = None
                 if initial_values is not None:
                     if n_boot > 0:
                         _logger.warning(f'Initial values were provided: the p0 bootstrap ({n_boot} realizations) '
                                         f'is skipped.')
-                    self.p0 = initial_values
+                    self.p0 = np.asarray(initial_values, dtype=float)
+
+                    # Initial values outside the prior bounds (the sampler would start at zero probability)
+                    outside = np.flatnonzero((self.p0 < self.bounds[:, 0]) | (self.p0 > self.bounds[:, 1]))
+                    if outside.size:
+                        _logger.warning('The initial values are outside the prior bounds for: '
+                                        + ', '.join(f'{PARAM_NAMES[i]}={self.p0[i]:.4f} (bounds: '
+                                                    f'{self.bounds[i, 0]:.4f} to {self.bounds[i, 1]:.4f})'
+                                                    for i in outside))
+
                 elif n_boot > 0:
                     flux_in, err_in = np.asarray(flux_arr, dtype=float), np.asarray(err_arr, dtype=float)
                     noise = np.random.default_rng(rng_seed).standard_normal((n_boot, flux_in.size))
@@ -593,10 +623,54 @@ class SSP_sampler:
                 # Declaring the model
                 self.pm_model = single_pop_model(self.bounds, self.lum, self.lum_err, self.mask, self)
 
+                # Plot initial pre-launch diagnostic
+                if plot_results:
+                    self._plot_prepare_diagnostic(libraries=params.get('library'), user_p0=initial_values is not None)
+
             case _ :
                 raise SpecSyError(f'SSP synthesis model "{model}" is not recognized')
 
         return
+
+
+    def _plot_prepare_diagnostic(self, libraries=None, user_p0=False):
+
+        """
+        Pre-launch diagnostic: the age-metallicity coverage of the SSP grid with the prior age/metallicity bounds as a
+        shaded region and the p0 solution (minimizer, or the user initial values) in blue: a dot, or a star (the mean)
+        over the dots of the bootstrap solutions if p0_arr exists.
+        """
+
+        # in_fig=_NO_FIG: the map is drawn on a new figure which is returned instead of displayed
+        fig, ax = plot_metallicity_age_map(self.stellar_ssp.frame, self.stellar_ssp._library_mask, libraries,
+                                           in_fig=None)
+
+        # The map shows Z in linear scale while the bounds and p0 are sampled in log10(Z)
+        (t_lo, t_hi), (z_lo, z_hi) = self.bounds[:2]
+        ax.add_patch(Rectangle((t_lo, 10.0 ** z_lo), t_hi - t_lo, 10.0 ** z_hi - 10.0 ** z_lo, facecolor='tab:green',
+                               edgecolor='tab:green', alpha=0.2, zorder=0, label='Prior bounds'))
+
+        # Bootstrap solutions as blue dots (many repeat on the same node, hence the transparency) and p0 (their
+        # mean) as a star; without bootstrap p0 is a single blue dot
+        if self.p0_arr is not None:
+            ax.scatter(self.p0_arr[:, 0], 10.0 ** self.p0_arr[:, 1], s=25, color='blue', alpha=0.3, lw=0, zorder=9,
+                       label='Minimizer bootstrap solutions')
+            marker, p0_label = '*', 'Minimizer mean'
+        else:
+            marker, p0_label = 'o', 'Initial values (user)' if user_p0 else 'Minimizer solution'
+
+        p0_label = f'{p0_label} (log(age) = {self.p0[0]:0.2f}, Z = {10.0 ** self.p0[1]:0.5f})'
+        ax.scatter(self.p0[0], 10.0 ** self.p0[1], marker=marker, s=200 if marker == '*' else 60, color='blue',
+                   edgecolor='white', zorder=10, label=p0_label)
+
+        # Metallicity spans several orders of magnitude
+        ax.set_yscale('log')
+        ax.autoscale_view()
+        ax.legend()
+
+        plt.show()
+
+        return fig, ax
 
     def sample(self, draws=5000, tune=1000, n_walkers=64, cores=None, sampler='DEMetropolis', spread=0.10,
                spread_step=True, step_kwargs=None, rng_seed=None, band_draws=1000, truth_dict=None, **kwargs):
@@ -640,6 +714,7 @@ class SSP_sampler:
 
         return self.idata
 
+
     def summary(self, truth_dict=None, var_names=None, verbose=True):
 
         # Get the results table
@@ -665,12 +740,15 @@ class SSP_sampler:
 
         return results_df
 
+
     def nearest(self, log_age, log_met):
         """Flux row of the grid node nearest to (log_age, log_met), -1 if the combination is missing."""
         return int(self.grid.rows(log_age, log_met)[0])
 
+
     def model(self, theta):
         return self.grid.model(theta)
+
 
     def _parse_results(self, param_names, band_draws, random_seed, truth_dict=None):
 
@@ -744,6 +822,7 @@ class SSP_sampler:
 
         return
 
+
     def save_trace(self, fname, trace=None):
 
         if trace == None:
@@ -778,17 +857,12 @@ def get_initial_values(lum, lum_err, mask, nodes, bounds, ebv_step=0.005, show_s
     """
 
     (t_lo, t_hi), (z_lo, z_hi), (e_lo, e_hi), (a_lo, a_hi) = bounds
-    mask = np.asarray(mask, dtype=bool)
-    lum = np.asarray(lum, dtype=float)
     single = lum.ndim == 1
     lum = np.atleast_2d(lum)
 
     # Fitted pixels and their weights
-    good = mask & np.isfinite(lum).all(axis=0) & np.isfinite(lum_err) & (lum_err > 0)
-    n_bad = int(mask.sum() - good.sum())
-    if n_bad > 0:
-        _logger.warning(f'{n_bad} of the {int(mask.sum())} unmasked pixels have a non-finite flux or a non-positive '
-                        f'uncertainty. They are excluded from the fit.')
+    good = mask
+
     y_arr, w = lum[:, good], 1.0 / lum_err[good] ** 2
 
     # Grid nodes inside the age and metallicity bounds

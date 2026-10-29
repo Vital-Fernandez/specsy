@@ -1,6 +1,6 @@
 [metadata]
 name = 'specsy'
-version = "0.11.0"
+version = "0.12.0"
 emissivity_fname = 'emissivity_grids_pyneb_1.1.32_v0.10.0.nc'
 
 [emissivity_grid]
@@ -84,7 +84,11 @@ log_age_arr = [ 6.0,  6.1,  6.2,  6.3,  6.4,  6.5,  6.6,  6.7,  6.8,  6.9,  7.0 
                 8.2,  8.3,  8.4,  8.5,  8.6,  8.7,  8.8,  8.9,  9.0 , 9.1,  9.2,
                 9.3,  9.4,  9.5,  9.6,  9.7,  9.8,  9.9, 10.0 , 10.1, 10.2, 10.3,
                 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0 ]
-bounds = [[6, 7.5], [-5.0 , -1.39794001], [0.0, 3], [-20, 2]]
+bounds = [[6, 8], [-5.0 , -1.39794001], [0.0, 3], [-20, 2]]
+
+[stellar.ssp.vms_bpass]
+bounds = [[5, 7.5], [-4.0 , -2.69897], [0.0, 3], [-20, 2]]
+
 
 
 [stellar.ssp.bpass.z_keys]
@@ -110,6 +114,7 @@ z_keys.Z008 = 0.008
 z_keys.Z020 = 0.020
 z_keys.Z040 = 0.040
 
+
 [stellar.ssp.pystarburst99]
 z_keys.Z0    = 0.0
 z_keys.XMP   = 0.00001
@@ -118,6 +123,8 @@ z_keys.SMC   = 0.002
 z_keys.LMC   = 0.006
 z_keys.MW    = 0.014
 z_keys.MWC   = 0.020
+
+bounds = [[6, 8], [-5.0 , -1.6989700043360187], [0.0, 3], [-20, 2]]
 
 
 [stellar.ssp.pystarburst99.MWC]
@@ -217,86 +224,3 @@ ifa_params      = 'spec_params_ifa_line_m13.npy'
 lm_params       = 'spec_params_lowmassm13.npy'
 lm_flux         = 'lcb97_m13_reform.npy'
 wr_suffix       = 'Z001'
-
-
-
-[latex_param_notation]
-temp_low="$Te_{low}(K)$"
-temp_med="$Te_{med}(K)$"
-temp_high="$Te_{high}(K)$"
-temp_vhigh="$Te_{vhigh}(K)$"
-
-den_low="$ne_{low}(cm^{-3})$"
-den_med="$ne_{med}(cm^{-3})$"
-den_high="$ne_{high}(cm^{-3})$"
-den_vhigh="$ne_{vhigh}(cm^{-3})$"
-
-cHBeta = "$c(H\\beta)$"
-
-S2  = "$12+log(S^{+}/H^{+})$"
-S3  = "$12+log(S^{2+}/H^{+})$"
-S4  = "$12+log(S^{3+}/H^{+})$"
-O2  = "$12+log(O^{+}/H^{+})$"
-O3  = "$12+log(O^{2+}/H^{+})$"
-N2 =  "$12+log(Ni^{+}/H^{+})$"
-N3 =  "$12+log(Ni^{2+}/H^{+})$"
-NI3 = "$12+log(Ni^{2+}/H^{+})$"
-Cl3 = "$12+log(Cl^{2+}/H^{+})$"
-Cl4 = "$12+log(Cl^{3+}/H^{+})$"
-Ne3 = "$12+log(Ne^{2+}/H^{+})$"
-Fe3 = "$12+log(Fe^{2+}/H^{+})$"
-Ar3 = "$12+log(Ar^{2+}/H^{+})$"
-Ar4 = "$12+log(Ar^{3+}/H^{+})$"
-He1r = "$y^{+}$"
-He2r = "$y^{2+}$"
-He1 = "$y^{+}$"
-He2 = "$y^{2+}$"
-
-Ar = "$\\frac{Ar}{H}$"
-He = "$\\frac{He}{H}$"
-O = "$\\frac{O}{H}$"
-N = "$\\frac{N}{H}$"
-S = "$\\frac{S}{H}$"
-NO = "$\\frac{N}{O}$"
-
-y_plus = "$y^{+}$"
-
-He1_abund = "$y^{+}$"
-He2_abund = "$y^{++}$"
-Te = "$T_{e}$"
-T_He = "$T_{He}$"
-n_e = "$n_{e}(cm^{-3})$"
-cHbeta = "$c(H\\beta)$"
-tau = "$\\tau$"
-xi = "$\\xi$"
-ChiSq = "$\\chi^{2}$"
-ChiSq_Recomb = "$\\chi^{2}_{Recomb}$"
-ChiSq_Metals = "$\\chi^{2}_{Metals}$"
-ChiSq_O = "$\\chi^{2}_{O}$"
-ChiSq_S = "$\\chi^{2}_{S}$"
-S2_abund = "$S^{+}$"
-log_He1r = "$log(y^{+})$"
-log_He2r = "$log(y^{2+})$"
-OH = "$\\frac{O}{H}$"
-OH_err = "$O/H\\,err$"
-S3_abund = "$S^{2+}$"
-O2_abund = "$O^{+}$"
-O3_abund = "$O^{2+}$"
-N2_abund = "$N^{+}$"
-Ar3_abund = "$Ar^{2+}$"
-Ar4_abund = "$Ar^{3+}$"
-
-Ar_abund = "$\\frac{ArI}{HI}$"
-He_abund = "$\\frac{HeI}{HI}$"
-O_abund = "$\\frac{OI}{HI}$"
-N_abund = "$\\frac{NI}{HI}$"
-S_abund = "$\\frac{SI}{HI}$"
-Ymass_O = "$Y_{O}$"
-Ymass_S = "$Y_{S}$"
-
-calcFluxes_Op = "Line fluxes"
-z_star = "$z_{\\star}$"
-sigma_star = "$\\sigma_{\\star}$"
-Av_star = "$Av_{\\star}$"
-chiSq_ssp = "$\\chi^{2}_{SSP}$"
-x = "x interpolator$"

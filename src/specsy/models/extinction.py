@@ -7,7 +7,6 @@ from lime import label_decomposition
 from lime.io import check_file_dataframe
 from lime.tools import au
 from uncertainties import unumpy, ufloat
-from specsy.plotting.plots import extinction_gradient
 from specsy.tools import get_mixed_fluxes, linear_regression
 from specsy.io import SpecSyError
 
@@ -22,6 +21,9 @@ DEFAULT_RV = {'CCM89': 3.1, 'CCM89 Bal07': 3.1, 'CCM89 oD94': 3.1, 'S79 H83 CCM8
 FIXED_RV_LAWS = {'SM79 Gal', 'G03 LMC'}
 
 EXT_LAWS = tuple(DEFAULT_RV)
+
+# Hbeta wavelength at which c(Hbeta) is defined (same value as in extinction_coeff_calc)
+HBETA_WAVE = 4861.25
 
 
 # Function to compute and plot cHbeta
@@ -296,95 +298,117 @@ def extinction_curve(x, ext_law='CCM89', r_v=None):
     return klam
 
 
-# EXT_LAWS = {'CCM': lambda w: extinction.ccm89(w, 3.1, 3.1),
-#             'ODonnell': lambda w: extinction.odonnell94(w, 3.1, 3.1),
-#             'Fitzpatrick99': lambda w: extinction.fitzpatrick99(w, 3.1, 3.1),
-#             'FitzMassa07': lambda w: extinction.fm07(w, 3.1),
-#             'Calzetti': lambda w: extinction.calzetti00(w, 4.05, 4.05),
-#             'Gordon23': lambda w: G23(Rv=3.1)(w * au.AA) * 3.1,
-#             'LMC': lambda w: G03_LMCAvg()(w * au.AA) * G03_LMCAvg().Rv,
-#             'SMC': lambda w: G03_SMCBar()(w * au.AA) * G03_SMCBar().Rv}
-#
-# DEFAULT_RV = {'CCM': 3.1, 'ODonnell': 3.1, 'Fitzpatrick99': 3.1, 'FitzMassa07': 3.1,
-#               'Calzetti': 4.05, 'Gordon23': 3.1, 'LMC': 3.41, 'SMC': 2.74}
-#
-# # These laws are only defined at their tabulated R_V; a different value can't be requested
-# FIXED_RV_LAWS = {'FitzMassa07', 'LMC', 'SMC'}
-#
-#
-# def _ext_law_func(ext_law, r_v):
-#     match ext_law:
-#         case 'CCM':
-#             return lambda w: extinction.ccm89(w, r_v, r_v)
-#         case 'ODonnell':
-#             return lambda w: extinction.odonnell94(w, r_v, r_v)
-#         case 'Fitzpatrick99':
-#             return lambda w: extinction.fitzpatrick99(w, r_v, r_v)
-#         case 'FitzMassa07':
-#             return lambda w: extinction.fm07(w, r_v)
-#         case 'Calzetti':
-#             return lambda w: extinction.calzetti00(w, r_v, r_v)
-#         case 'Gordon23':
-#             return lambda w: G23(Rv=r_v)(w * au.AA) * r_v
-#         case 'LMC':
-#             model = G03_LMCAvg()
-#             return lambda w: model(w * au.AA) * model.Rv
-#         case 'SMC':
-#             model = G03_SMCBar()
-#             return lambda w: model(w * au.AA) * model.Rv
-#         case _:
-#             raise ValueError(f"'{ext_law}' has no implementation in _ext_law_func.")
-#
-#
-# def extinction_curve(x, ext_law='CCM', r_v=None):
-#     """A_lambda / E(B-V) in magnitudes, for one of SESAMME's extinction laws.
-#
-#     Every law in EXT_LAWS is linear in A_V at the assumed R_V, so the whole curve reduces to this one
-#     array, evaluated once here and reused at every sampling step as 10**(-0.4 * ebv * klam).
-#
-#     Parameters
-#     ----------
-#     ext_law : str, optional
-#         Defaults to models.use_ext_law, so set_ext_law() still controls it.
-#     r_v : float, optional
-#         Total-to-selective extinction ratio. Defaults to the law's tabulated value (Table 1). Ignored,
-#         with a warning, for laws whose curve is only defined at one R_V (FitzMassa07, LMC, SMC).
-#
-#     Raises
-#     ------
-#     ValueError
-#         If ext_law is not an implemented option.
-#     """
-#
-#     if ext_law not in EXT_LAWS:
-#         raise ValueError("'" + str(ext_law) + "' is not a valid choice of extinction law.\n"
-#                                               "Accepted values are " + ", ".join(EXT_LAWS) + ".")
-#
-#     r_v = DEFAULT_RV[ext_law] if r_v is None else r_v
-#     if (ext_law in FIXED_RV_LAWS) and not np.isclose(r_v, DEFAULT_RV[ext_law]):
-#         _logger.warning(f"'{ext_law}' is only defined at R_V={DEFAULT_RV[ext_law]}; the requested "
-#                         f"R_V={r_v} is ignored.")
-#         r_v = DEFAULT_RV[ext_law]
-#
-#     wave = np.asarray(x, dtype=np.float64)
-#     klam = np.asarray(_ext_law_func(ext_law, r_v)(wave), dtype=float)
-#
-#     if np.any(klam < 0) or not np.all(np.isfinite(klam)):
-#         _logger.warning(
-#             f"Extinction curve for {ext_law} has negative or non-finite values; check the wavelength coverage"
-#             " against the law's validity range.")
-#
-#     return klam
-#
-#
-# def reddening_law(ext_law='CCM', r_v=None):
-#     """(wave, ebv, flux) -> reddened flux, for SSPNodes."""
-#
-#     def apply(wave, ebv, flux):
-#         klam = extinction_curve(wave, ext_law=ext_law, r_v=r_v)
-#         return flux * 10.0 ** (-0.4 * ebv * klam)
-#
-#     return apply
+
+def spectrum_reddening_correction(spec, law='CCM89', R_V=None, A_V=None, E_BV=None, cHbeta=None, rest_frame=False,
+                                  plot_results=False, **kwargs):
+
+    """
+    Apply a reddening correction to a LiMe Spectrum and return it as a new Spectrum.
+
+    The extinction must be given by exactly one of ``A_V``, ``E_BV`` or ``cHbeta``. The flux (and its
+    uncertainty) is multiplied by 10**(0.4 * E(B-V) * X(lambda)), where X = A_lambda / E(B-V) comes
+    from the PyNeb law. The input spectrum is not modified.
+
+    :param spec: Observation to correct.
+    :type spec: lime.Spectrum
+
+    :param law: Reddening law in PyNeb notation (see EXT_LAWS). The default value is "CCM89".
+    :type law: str, optional
+
+    :param R_V: Total-to-selective extinction ratio. If None, the tabulated value for the law is used.
+    :type R_V: float, optional
+
+    :param A_V: Extinction in the V band in magnitudes.
+    :type A_V: float, optional
+
+    :param E_BV: Colour excess E(B-V) in magnitudes.
+    :type E_BV: float, optional
+
+    :param cHbeta: Logarithmic extinction coefficient at Hbeta.
+    :type cHbeta: float, optional
+
+    :param rest_frame: Evaluate the law at the rest-frame wavelengths (extinction at the source). By
+                       default, the observed wavelengths are used (Galactic foreground extinction).
+                       The default value is False.
+    :type rest_frame: bool, optional
+
+    :param plot_results: Print the output spectrum and plot it on top of the input one. The default value is False.
+    :type plot_results: bool, optional
+
+    :param kwargs: Arguments for the input spectrum plot, Spectrum.plot.spectrum(**kwargs). If not provided,
+                   "log_scale" is True and "rest_frame" matches the argument of this function. A "fname" entry
+                   is not sent to the plot: it is used to save the comparison figure instead.
+
+    :return: New spectrum with the corrected flux, sharing redshift, normalization, units and
+             resolving power with the input one. It is created with the Spectrum constructor, so its
+             lines frame and continuum are empty.
+    :rtype: lime.Spectrum
+
+    """
+
+    # Only one extinction parameter is accepted
+    n_inputs = sum(param is not None for param in (A_V, E_BV, cHbeta))
+    if n_inputs != 1:
+        raise SpecSyError(f'Please provide one (and only one) of the extinction parameters "A_V", "E_BV" or "cHbeta" '
+                          f'({n_inputs} were provided).')
+
+    # Unpack the spectrum arrays (observed wavelength, flux and uncertainty without the normalization, pixel mask)
+    wave, flux, err_flux, pixel_mask = spec.retrieve.spectrum(return_arrays=True)
+
+    # Wavelength in Angstroms at which the law is evaluated
+    wave_law = wave / (1 + spec.redshift) if rest_frame else wave
+    wave_AA = au.Quantity(wave_law, spec.units_wave).to_value(au.AA, equivalencies=au.spectral())
+
+    # A_lambda / E(B-V) for the spectrum pixels
+    klam = extinction_curve(wave_AA, law, R_V)
+
+    # Convert the input parameter to E(B-V)
+    if A_V is not None:
+        r_v = DEFAULT_RV[law] if (R_V is None or law in FIXED_RV_LAWS) else R_V
+        E_BV = A_V / r_v
+
+    elif cHbeta is not None:
+        E_BV = 2.5 * cHbeta / float(extinction_curve([HBETA_WAVE], law, R_V))
+
+    # Correction factor
+    corr = np.power(10, 0.4 * E_BV * klam)
+
+    # Mask the pixels where the law is not defined
+    pixel_mask = pixel_mask | ~np.isfinite(corr)
+
+    # New spectrum (keeps the input normalization, units and resolving power)
+    spec_out = spec.__class__(input_wave=wave,
+                              input_flux=flux * corr,
+                              input_err=None if err_flux is None else err_flux * corr,
+                              redshift=spec.redshift,
+                              norm_flux=spec.norm_flux,
+                              res_power=spec.res_power,
+                              units_wave=spec.units_wave,
+                              units_flux=spec.units_flux,
+                              pixel_mask=pixel_mask,
+                              id_label=spec.label)
+
+    # Compare the input and output spectra
+    if plot_results:
+
+        plot_kwargs = dict(kwargs)
+        plot_kwargs.setdefault('in_fig', None)
+        fname = plot_kwargs.pop('fname', None)
+
+        # The output spectrum is drawn in the same frame as the input one
+        wave_plot = spec_out.wave_rest if plot_kwargs.get('rest_frame', False) else spec_out.wave
+        spec.plot.spectrum(**plot_kwargs)
+        spec.plot.ax.step(wave_plot, spec_out.flux, label='Reddening corrected', where='mid')
+        spec.plot.ax.legend()
+
+        # Save before showing, the figure may be closed once it has been displayed
+        if fname is not None:
+            spec.plot.ax.figure.savefig(fname, bbox_inches='tight')
+        else:
+            spec.plot.show()
+
+    return spec_out
+
 
 
 class ExtinctionModel:

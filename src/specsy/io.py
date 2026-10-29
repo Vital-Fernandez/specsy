@@ -7,7 +7,7 @@ from pathlib import Path
 from collections.abc import Sequence
 from astropy.io import fits
 from innate import load_dataset
-from lime import load_cfg
+from lime.io import load_cfg
 from arviz import from_netcdf
 
 
